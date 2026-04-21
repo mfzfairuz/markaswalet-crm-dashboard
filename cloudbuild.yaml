@@ -1,0 +1,12 @@
+steps:
+  # Langkah 1: Membangun Docker Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/markaswalet-dashboard', '.']
+
+  # Langkah 2: Mengirim Image ke Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/markaswalet-dashboard']
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
