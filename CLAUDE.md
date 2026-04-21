@@ -97,10 +97,12 @@ python3 load_data.py # butuh CSV: master_customers_v2.csv, master_orders.csv, dl
 | POST   | `/import/mengantar`              | Upload data bulanan Mengantar (Excel)              |
 | GET    | `/leads`                         | List leads dengan pipeline status                  |
 | GET    | `/leads/pipeline-stats`          | Stats per pipeline stage                           |
+| GET    | `/leads/intake-trend`            | Trend intake leads mingguan (chart dashboard)      |
+| GET    | `/leads/track-history`           | Audit log perpindahan track                        |
 | GET    | `/leads/{lead_id}`               | Detail lead                                        |
 | PUT    | `/leads/{lead_id}`               | Update status/catatan/konversi ke customer         |
 | POST   | `/leads/import`                  | Import leads (dari Cekat CRM)                      |
-| POST   | `/leads/sync-tracks`             | Sinkronisasi tracking                              |
+| POST   | `/leads/sync-tracks`             | Recompute kolom `track` semua leads (manual/cron)  |
 
 ## Data Model (MySQL)
 
@@ -108,7 +110,8 @@ python3 load_data.py # butuh CSV: master_customers_v2.csv, master_orders.csv, dl
 - **orders** — `order_id`, `customer_id` (FK), `source_platform` (orderonline|mengantar), `order_date`, `order_status`, `payment_method`, `net_revenue`, `shipping_cost`, `total_qty`, `receipt_number`
 - **order_items** — `order_id`, `source_platform`, `product_id`, `product_name`, `product_category`, `qty_item`, `is_parent_row`
 - **products** — `product_id`, `product_name`
-- **leads** — `id`, `contact_id` (Cekat), `name`, `phone`, `pipeline_status`, `converted`, `customer_id` (FK), `label_names`, `note`, `kota`, plus field domain walet: `rumah_walet`, `usia_rbw`, `ukuran_rbw`, `jumlah_sarang`, `lantai_rbw`, `panen_per_3bulan`
+- **leads** — `id`, `contact_id` (Cekat), `name`, `phone`, `pipeline_status`, `converted`, `customer_id` (FK), `label_names`, `note`, `kota`, `track` (T1-Akuisisi/T2-Nurturing/T3-Fresh/T3-Lama/T4-Winback/Arsip), plus field domain walet: `rumah_walet`, `usia_rbw`, `ukuran_rbw`, `jumlah_sarang`, `lantai_rbw`, `panen_per_3bulan`
+- **lead_track_history** — `id`, `lead_id`, `from_track`, `to_track`, `source` (sync/import_mengantar/import_leads/manual_sync), `changed_at`. Auto-created di startup app.
 
 ## Konvensi & Gotchas
 

@@ -318,6 +318,25 @@ tr:hover td { background: var(--bg3); color: var(--text); }
             <div class="card-body"><div class="product-rank" id="topProvinsi"><div class="loading"><div class="spinner"></div></div></div></div>
           </div>
         </div>
+        <div class="card" style="margin-top:14px">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+            <div class="card-title">Intake Leads — Trend Mingguan</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:11px;color:var(--text3)" id="intakeSummary"></span>
+              <select id="intakeWeeks" onchange="loadIntakeTrend()" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;outline:none">
+                <option value="4">4 minggu</option>
+                <option value="8">8 minggu</option>
+                <option value="12" selected>12 minggu</option>
+                <option value="24">24 minggu</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="intakeChart" style="display:flex;align-items:flex-end;gap:6px;height:180px;padding:10px 4px 0">
+              <div class="loading" style="width:100%"><div class="spinner"></div></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1050,7 +1069,51 @@ async function loadDashboard() {
       </div>`).join('');
 
     document.getElementById('lastUpdated').textContent = 'Update: '+new Date().toLocaleTimeString('id-ID');
+    loadIntakeTrend();
   } catch(e) { toast('Gagal load dashboard','error'); }
+}
+
+async function loadIntakeTrend() {
+  const weeks = parseInt(document.getElementById('intakeWeeks')?.value || '12');
+  const el = document.getElementById('intakeChart');
+  const sumEl = document.getElementById('intakeSummary');
+  if (!el) return;
+  el.innerHTML = '<div class="loading" style="width:100%"><div class="spinner"></div></div>';
+  try {
+    const d = await fetch(`${API}/leads/intake-trend?weeks=${weeks}`).then(r => r.json());
+    const data = d.data || [];
+    if (data.length === 0) {
+      el.innerHTML = '<div style="text-align:center;color:var(--text3);width:100%;padding:30px">Belum ada data</div>';
+      sumEl.textContent = '';
+      return;
+    }
+    const maxLeads = Math.max(...data.map(w => w.total_leads), 1);
+    const totalLeads = data.reduce((s, w) => s + w.total_leads, 0);
+    const totalConverted = data.reduce((s, w) => s + w.converted_count, 0);
+    const convPct = totalLeads > 0 ? Math.round(totalConverted / totalLeads * 100) : 0;
+    sumEl.textContent = `${totalLeads.toLocaleString('id-ID')} leads · ${totalConverted.toLocaleString('id-ID')} converted (${convPct}%)`;
+
+    el.innerHTML = data.map(w => {
+      const pct = Math.max(4, (w.total_leads / maxLeads) * 160);
+      const convPct2 = w.total_leads > 0 ? Math.round(w.converted_count / w.total_leads * 100) : 0;
+      const date = w.week_start ? new Date(w.week_start) : null;
+      const dateLabel = date ? `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}` : '';
+      const convH = (w.converted_count / w.total_leads) * pct || 0;
+      const newH = pct - convH;
+      return `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+          <div style="font-size:10px;color:var(--text2);font-weight:600">${w.total_leads}</div>
+          <div title="${dateLabel}: ${w.total_leads} leads, ${w.converted_count} converted (${convPct2}%)"
+               style="display:flex;flex-direction:column;width:100%;height:${pct}px;border-radius:4px 4px 0 0;overflow:hidden;cursor:pointer;background:var(--bg3)">
+            <div style="flex:${newH};background:linear-gradient(180deg,#E8A020,rgba(232,160,32,0.5));min-height:${newH>0?2:0}px"></div>
+            <div style="flex:${convH};background:linear-gradient(180deg,#2A9D6F,rgba(42,157,111,0.5));min-height:${convH>0?2:0}px"></div>
+          </div>
+          <div style="font-size:9px;color:var(--text3)">${dateLabel}</div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<div style="text-align:center;color:var(--danger);width:100%;padding:30px">Gagal memuat trend</div>';
+  }
 }
 
 function debounceSearch() {
@@ -1187,6 +1250,16 @@ function handleDragLeave(e,type){document.getElementById(type==='oo'?'ooDropzone
 function handleDrop(e,platform){e.preventDefault();const id=platform==='orderonline'?'oo':'men';document.getElementById(id+'Dropzone').classList.remove('dragover');const file=e.dataTransfer.files[0];if(file)uploadFile(file,platform);}
 function handleFileSelect(input,platform){if(input.files[0])uploadFile(input.files[0],platform);}
 
+function showTrackRecalcToasts(sync) {
+  if (!sync || !sync.transitions || sync.transitions.length === 0) return;
+  const top = sync.transitions.slice(0, 3);
+  toast(`🔄 ${sync.updated} leads track berubah`, 'success');
+  top.forEach(t => {
+    const arrow = `${t.from} → ${t.to}`;
+    setTimeout(() => toast(`${t.count} leads: ${arrow}`, 'success'), 100);
+  });
+}
+
 async function uploadFile(file,platform) {
   const statusEl=document.getElementById(platform==='orderonline'?'ooStatus':'menStatus');
   statusEl.innerHTML=`<div class="loading" style="padding:8px 0"><div class="spinner"></div> Mengupload...</div>`;
@@ -1196,6 +1269,7 @@ async function uploadFile(file,platform) {
     const d=await r.json();
     statusEl.innerHTML=`<span style="color:var(--success)">✅ ${d.filename||'File'} — ${d.inserted||0} baru, ${d.skipped_duplicate||0} duplikat dilewati, ${d.leads_synced||0} leads diupdate</span>`;
     toast(`File berhasil diupload`,'success');
+    showTrackRecalcToasts(d.tracks_recalc);
   } catch {
     statusEl.innerHTML=`<span style="color:var(--danger)">❌ Gagal upload</span>`;
     toast('Upload gagal','error');
@@ -1388,6 +1462,7 @@ async function importLeads(input) {
   try {
     const d = await fetch(`${API}/leads/import`, { method: 'POST', body: fd }).then(r => r.json());
     toast(`Import selesai: ${d.inserted} baru, ${d.updated} diupdate`, 'success');
+    showTrackRecalcToasts(d.tracks_recalc);
     loadLeads();
     loadLeadsPipelineStats();
   } catch(e) { toast('Import gagal', 'error'); }
@@ -1633,6 +1708,7 @@ async function handleLeadsImport(input) {
     const d=await fetch(`${API}/leads/import`,{method:'POST',body:fd}).then(r=>r.json());
     el.innerHTML=`<span style="color:var(--success)">✅ Selesai — ${d.inserted} leads baru, ${d.updated} diupdate</span>`;
     toast(`Import selesai: ${d.inserted} baru`,'success');
+    showTrackRecalcToasts(d.tracks_recalc);
   } catch{el.innerHTML='<span style="color:var(--danger)">❌ Gagal import</span>';toast('Import gagal','error');}
 }
 

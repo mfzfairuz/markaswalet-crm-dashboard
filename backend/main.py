@@ -51,6 +51,29 @@ def get_db():
     with engine.connect() as conn:
         yield conn
 
+# ── SCHEMA INIT ────────────────────────────────────────────────────────
+@app.on_event("startup")
+def init_schema():
+    """Create audit/log tables kalau belum ada (idempotent)."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS lead_track_history (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    lead_id BIGINT NOT NULL,
+                    from_track VARCHAR(20),
+                    to_track VARCHAR(20),
+                    source VARCHAR(40),
+                    changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_lead (lead_id),
+                    INDEX idx_changed (changed_at),
+                    INDEX idx_source (source)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """))
+            conn.commit()
+    except Exception as e:
+        print(f"Schema init warning: {e}")
+
 # ── UTILS ─────────────────────────────────────────────────────────────
 def normalize_phone(raw: str) -> Optional[str]:
     if not raw:
@@ -817,7 +840,7 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
 
     # Auto sync tracks setelah import mengantar — pakai logic kanonis
     try:
-        sync_result = _recalc_tracks(conn)
+        sync_result = _recalc_tracks(conn, source="import_mengantar")
     except Exception as e:
         print(f"Auto sync tracks warning: {e}")
         sync_result = None
@@ -837,7 +860,7 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
 # LEADS
 # ─────────────────────────────────────────
 
-def _recalc_tracks(conn):
+def _recalc_tracks(conn, source: str = "manual"):
     """
     Hitung ulang kolom `track` untuk SEMUA leads dengan satu logic kanonis.
     Dipakai oleh /leads/sync-tracks, /leads/import, dan /import/mengantar
@@ -854,8 +877,11 @@ def _recalc_tracks(conn):
         usia dari created_at ≤ 14 hari → T1-Akuisisi
         usia dari last_msg ≤ 90 hari   → T2-Nurturing
         selain itu                     → T4-Winback
+
+    Setiap perubahan track diaudit ke tabel `lead_track_history` dengan
+    kolom `source` (mis. 'sync', 'import_mengantar', 'import_leads').
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime
     now = datetime.now()
 
     buyer_last_order = {}
@@ -877,6 +903,8 @@ def _recalc_tracks(conn):
 
     updated = 0
     track_counts = {}
+    transitions = {}  # {(from, to): count}
+    history_batch = []  # [(lead_id, from, to)]
 
     for row in rows:
         lid, phone, pipeline, converted, created_at, last_msg, current_track = row
@@ -911,20 +939,44 @@ def _recalc_tracks(conn):
                 "UPDATE leads SET track = :track WHERE id = :id"
             ), {"track": track, "id": lid})
             updated += 1
+            key = (current_track or "(none)", track)
+            transitions[key] = transitions.get(key, 0) + 1
+            history_batch.append({
+                "lead_id": lid,
+                "from_track": current_track,
+                "to_track": track,
+                "source": source,
+            })
         track_counts[track] = track_counts.get(track, 0) + 1
 
-        # Sync converted kalau phone ada di buyer
         if phone and phone in buyer_last_order:
             conn.execute(text(
                 "UPDATE leads SET converted = 1 WHERE id = :id AND converted = 0"
             ), {"id": lid})
 
+    if history_batch:
+        try:
+            conn.execute(text("""
+                INSERT INTO lead_track_history (lead_id, from_track, to_track, source)
+                VALUES (:lead_id, :from_track, :to_track, :source)
+            """), history_batch)
+        except Exception as e:
+            print(f"Track history insert warning: {e}")
+
     conn.commit()
+
+    transitions_list = [
+        {"from": k[0], "to": k[1], "count": v}
+        for k, v in sorted(transitions.items(), key=lambda x: -x[1])
+    ]
+
     return {
         "processed": len(rows),
         "updated": updated,
         "distribution": track_counts,
+        "transitions": transitions_list,
         "buyers_matched": len(buyer_last_order),
+        "source": source,
     }
 
 
@@ -1168,7 +1220,7 @@ async def import_leads(file: UploadFile = File(...), conn=Depends(get_db)):
 
     # Auto sync tracks setelah import leads — pakai logic kanonis
     try:
-        sync_result = _recalc_tracks(conn)
+        sync_result = _recalc_tracks(conn, source="import_leads")
     except Exception as e:
         print(f"Auto sync tracks warning: {e}")
         sync_result = None
@@ -1185,5 +1237,70 @@ async def import_leads(file: UploadFile = File(...), conn=Depends(get_db)):
 @app.post("/leads/sync-tracks")
 async def sync_tracks(conn=Depends(get_db)):
     """Hitung ulang track semua leads. Dipanggil manual / cron."""
-    result = _recalc_tracks(conn)
+    result = _recalc_tracks(conn, source="manual_sync")
     return {"status": "success", **result}
+
+
+@app.get("/leads/intake-trend")
+def leads_intake_trend(
+    weeks: int = Query(12, ge=1, le=52),
+    conn=Depends(get_db)
+):
+    """
+    Trend intake leads per minggu (untuk chart dashboard).
+    Mingguan = ISO week (Senin-Minggu).
+    """
+    result = conn.execute(text("""
+        SELECT
+            YEARWEEK(created_at, 3) AS yearweek,
+            DATE(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY)) AS week_start,
+            COUNT(*) AS total_leads,
+            SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) AS converted_count
+        FROM leads
+        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL :weeks WEEK)
+        GROUP BY yearweek, week_start
+        ORDER BY week_start ASC
+    """), {"weeks": weeks})
+
+    data = []
+    for row in result:
+        d = dict(zip(result.keys(), row))
+        data.append({
+            "yearweek": str(d["yearweek"]),
+            "week_start": d["week_start"].isoformat() if d["week_start"] else None,
+            "total_leads": int(d["total_leads"] or 0),
+            "converted_count": int(d["converted_count"] or 0),
+        })
+
+    return {"weeks": weeks, "data": data}
+
+
+@app.get("/leads/track-history")
+def leads_track_history(
+    lead_id: Optional[int] = None,
+    source: Optional[str] = None,
+    days: int = Query(7, ge=1, le=90),
+    limit: int = Query(100, ge=1, le=2000),
+    conn=Depends(get_db)
+):
+    """Audit log perpindahan track leads."""
+    where = ["changed_at >= DATE_SUB(NOW(), INTERVAL :days DAY)"]
+    params = {"days": days, "limit": limit}
+    if lead_id:
+        where.append("lead_id = :lead_id")
+        params["lead_id"] = lead_id
+    if source:
+        where.append("source = :source")
+        params["source"] = source
+
+    result = conn.execute(text(f"""
+        SELECT h.id, h.lead_id, l.name, l.phone,
+               h.from_track, h.to_track, h.source, h.changed_at
+        FROM lead_track_history h
+        LEFT JOIN leads l ON h.lead_id = l.id
+        WHERE {' AND '.join(where)}
+        ORDER BY h.changed_at DESC
+        LIMIT :limit
+    """), params)
+
+    return {"data": rows_to_dict(result)}
