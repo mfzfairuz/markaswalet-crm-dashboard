@@ -247,6 +247,7 @@ tr:hover td { background: var(--bg3); color: var(--text); }
       <a class="nav-item active" onclick="showPage('dashboard')" href="#"><span class="nav-icon">📊</span> Dashboard</a>
       <a class="nav-item" onclick="showPage('customers')" href="#"><span class="nav-icon">👥</span> Customers</a>
       <a class="nav-item" onclick="showPage('orders')" href="#"><span class="nav-icon">📦</span> Orders</a>
+      <a class="nav-item" onclick="showPage('rfm')" href="#"><span class="nav-icon">🎖️</span> RFM Segmentasi</a>
       <div class="nav-label">Data</div>
       <a class="nav-item" onclick="showPage('leads')" href="#"><span class="nav-icon">🎯</span> Leads</a>
       <a class="nav-item" onclick="showPage('import')" href="#"><span class="nav-icon">⬆️</span> Import Orders</a>
@@ -414,6 +415,67 @@ tr:hover td { background: var(--bg3); color: var(--text); }
             </table>
           </div>
           <div class="pagination" id="ordersPagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RFM SEGMENTASI -->
+    <div class="page" id="page-rfm">
+      <div class="topbar">
+        <div class="topbar-title">RFM Segmentasi</div>
+        <span style="font-size:12px;color:var(--text3)" id="rfmGeneratedAt"></span>
+      </div>
+      <div style="padding:24px">
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-body" style="font-size:12px;line-height:1.6;color:var(--text2)">
+            <strong style="font-family:var(--font-head);color:var(--text)">Cara baca:</strong>
+            Skor <strong>R</strong> (Recency), <strong>F</strong> (Frequency), <strong>M</strong> (Monetary) masing-masing 1-5 dihitung via NTILE dari data customer aktif.
+            Semakin tinggi skor = semakin baik. Segment ditentukan otomatis dari kombinasi R/F/M.
+          </div>
+        </div>
+        <div class="stats-grid" id="rfmSegmentCards">
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+            <div class="card-title">Detail Customer per Segment</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <div class="search-input-wrap" style="min-width:220px">
+                <span class="search-icon">🔍</span>
+                <input class="search-input" id="rfmSearch" placeholder="Cari nama / HP..." oninput="debounceRfmSearch()">
+              </div>
+              <select class="filter-select" id="rfmSegmentFilter" onchange="loadRfmCustomers()">
+                <option value="">Semua Segment</option>
+              </select>
+              <select class="filter-select" id="rfmSort" onchange="loadRfmCustomers()">
+                <option value="total_revenue|desc">Revenue Tertinggi</option>
+                <option value="total_orders|desc">Order Terbanyak</option>
+                <option value="recency_days|asc">Paling Baru Order</option>
+                <option value="recency_days|desc">Paling Lama Tidak Order</option>
+              </select>
+              <button onclick="exportRfmCsv()" style="padding:8px 14px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--font-body);font-weight:700;font-size:12px;cursor:pointer">📤 Export CSV</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Customer</th>
+                <th>Lokasi</th>
+                <th>Segment</th>
+                <th style="text-align:center" title="Recency">R</th>
+                <th style="text-align:center" title="Frequency">F</th>
+                <th style="text-align:center" title="Monetary">M</th>
+                <th>Total Orders</th>
+                <th>Total Revenue</th>
+                <th>Last Order</th>
+              </tr></thead>
+              <tbody id="rfmTable"><tr><td colspan="9"><div class="loading"><div class="spinner"></div> Memuat data...</div></td></tr></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="rfmPagination"></div>
         </div>
       </div>
     </div>
@@ -843,6 +905,7 @@ function showPage(name) {
   });
   if (name === 'customers' && !document.getElementById('custTable').dataset.loaded) loadCustomers();
   if (name === 'orders' && !document.getElementById('ordersTable').dataset.loaded) loadOrders();
+  if (name === 'rfm' && !document.getElementById('rfmTable').dataset.loaded) { loadRfmSummary(); loadRfmCustomers(); }
   if (name === 'leads') { loadLeads(); loadLeadsPipelineStats(); }
   if (name === 'export') {
     showJadwalReminder();
@@ -1637,6 +1700,177 @@ function updateJadwalReminder() {
   }
 
   el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RFM SEGMENTASI
+// ═══════════════════════════════════════════════════════════
+let rfmPage = 1, rfmSearchTimer = null, rfmSummaryCache = null;
+
+const RFM_SEGMENT_COLORS = {
+  'Champions':        { bg:'#E8A020', fg:'#fff' },
+  'Loyal Customers':  { bg:'#2D7DD2', fg:'#fff' },
+  'New Customers':    { bg:'#38B000', fg:'#fff' },
+  'Promising':        { bg:'#7FB069', fg:'#fff' },
+  'Cannot Lose Them': { bg:'#D62828', fg:'#fff' },
+  'At Risk':          { bg:'#F77F00', fg:'#fff' },
+  'Hibernating':      { bg:'#8D99AE', fg:'#fff' },
+  'Lost':             { bg:'#6C757D', fg:'#fff' },
+  'Others':           { bg:'#B0B0B0', fg:'#fff' }
+};
+
+const rfmBadge = seg => {
+  const c = RFM_SEGMENT_COLORS[seg] || RFM_SEGMENT_COLORS['Others'];
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:${c.bg};color:${c.fg};font-size:11px;font-weight:700;white-space:nowrap">${seg}</span>`;
+};
+
+const rfmScoreCell = s => {
+  const v = Number(s) || 0;
+  const opacity = 0.2 + (v / 5) * 0.8;
+  return `<span style="display:inline-block;min-width:22px;padding:2px 6px;border-radius:4px;background:rgba(232,160,32,${opacity});color:var(--text);font-weight:700;font-size:11px;text-align:center">${v}</span>`;
+};
+
+async function loadRfmSummary() {
+  try {
+    const d = await fetch(API + '/analytics/rfm').then(r => r.json());
+    rfmSummaryCache = d;
+
+    if (d.generated_at) {
+      const dt = new Date(d.generated_at);
+      document.getElementById('rfmGeneratedAt').textContent =
+        `${d.total_customers_scored.toLocaleString('id-ID')} customer · dihitung ${dt.toLocaleString('id-ID')}`;
+    }
+
+    const grid = document.getElementById('rfmSegmentCards');
+    grid.innerHTML = d.segments.map(s => {
+      const c = RFM_SEGMENT_COLORS[s.segment] || RFM_SEGMENT_COLORS['Others'];
+      return `
+        <div class="stat-card" style="cursor:pointer;border-left:4px solid ${c.bg}" onclick="filterRfmBySegment('${s.segment}')">
+          <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+            <div style="font-family:var(--font-head);font-size:12px;font-weight:700;color:var(--text)">${s.segment}</div>
+            <span style="font-size:10px;color:var(--text3)">${s.customers_pct}%</span>
+          </div>
+          <div style="font-size:22px;font-weight:800;margin-top:4px;color:var(--text)">${s.customers.toLocaleString('id-ID')}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">${fmt(s.total_revenue)} · ${s.revenue_pct}%</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.4">${s.description}</div>
+        </div>`;
+    }).join('');
+
+    const filterSel = document.getElementById('rfmSegmentFilter');
+    const currentVal = filterSel.value;
+    filterSel.innerHTML = '<option value="">Semua Segment</option>' +
+      d.segments.map(s => `<option value="${s.segment}">${s.segment} (${s.customers})</option>`).join('');
+    filterSel.value = currentVal;
+  } catch (e) {
+    document.getElementById('rfmSegmentCards').innerHTML =
+      `<div class="stat-card" style="grid-column:1/-1"><div style="color:var(--danger);text-align:center;padding:20px">Gagal memuat RFM summary</div></div>`;
+  }
+}
+
+function filterRfmBySegment(seg) {
+  document.getElementById('rfmSegmentFilter').value = seg;
+  rfmPage = 1;
+  loadRfmCustomers();
+}
+
+function debounceRfmSearch() {
+  clearTimeout(rfmSearchTimer);
+  rfmSearchTimer = setTimeout(() => { rfmPage = 1; loadRfmCustomers(); }, 400);
+}
+
+async function loadRfmCustomers() {
+  const tbody = document.getElementById('rfmTable');
+  tbody.innerHTML = `<tr><td colspan="9"><div class="loading"><div class="spinner"></div> Memuat data...</div></td></tr>`;
+
+  const segment = document.getElementById('rfmSegmentFilter').value;
+  const search  = document.getElementById('rfmSearch').value.trim();
+  const [sortCol, sortDir] = document.getElementById('rfmSort').value.split('|');
+
+  const params = new URLSearchParams({
+    page: rfmPage, limit: 50,
+    sort: sortCol, direction: sortDir,
+  });
+  if (segment) params.set('segment', segment);
+  if (search)  params.set('search', search);
+
+  try {
+    const d = await fetch(`${API}/analytics/rfm/customers?${params}`).then(r => r.json());
+    tbody.dataset.loaded = '1';
+
+    if (!d.data || d.data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9"><div style="text-align:center;padding:32px;color:var(--text3)">Tidak ada customer yang cocok.</div></td></tr>`;
+      document.getElementById('rfmPagination').innerHTML = '';
+      return;
+    }
+
+    tbody.innerHTML = d.data.map(c => `
+      <tr style="cursor:pointer" onclick="openCustomer('${c.customer_id}')">
+        <td>
+          <div style="font-weight:600">${c.name || '-'}</div>
+          <div style="font-size:11px;color:var(--text3)">${c.customer_id}</div>
+        </td>
+        <td style="font-size:12px">${[c.city, c.province].filter(Boolean).join(', ') || '-'}</td>
+        <td>${rfmBadge(c.rfm_segment)}</td>
+        <td style="text-align:center">${rfmScoreCell(c.r_score)}</td>
+        <td style="text-align:center">${rfmScoreCell(c.f_score)}</td>
+        <td style="text-align:center">${rfmScoreCell(c.m_score)}</td>
+        <td>${(c.total_orders || 0).toLocaleString('id-ID')}</td>
+        <td>${fmt(c.total_revenue)}</td>
+        <td style="font-size:12px">${fmtDate(c.last_order_date)} <span style="color:var(--text3);font-size:11px">(${c.recency_days || 0}h)</span></td>
+      </tr>
+    `).join('');
+
+    renderRfmPagination(d);
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="9"><div style="text-align:center;padding:32px;color:var(--danger)">Gagal memuat data customer.</div></td></tr>`;
+  }
+}
+
+function renderRfmPagination(d) {
+  const pag = document.getElementById('rfmPagination');
+  if (!d.pages || d.pages <= 1) { pag.innerHTML = ''; return; }
+  const prev = rfmPage > 1 ? `<button onclick="rfmGoTo(${rfmPage-1})">‹ Prev</button>` : '';
+  const next = rfmPage < d.pages ? `<button onclick="rfmGoTo(${rfmPage+1})">Next ›</button>` : '';
+  pag.innerHTML = `${prev}<span style="padding:0 10px;font-size:12px;color:var(--text3)">Halaman ${rfmPage} dari ${d.pages} (${d.total.toLocaleString('id-ID')} total)</span>${next}`;
+}
+
+function rfmGoTo(p) { rfmPage = p; loadRfmCustomers(); }
+
+async function exportRfmCsv() {
+  const segment = document.getElementById('rfmSegmentFilter').value;
+  const search  = document.getElementById('rfmSearch').value.trim();
+  const [sortCol, sortDir] = document.getElementById('rfmSort').value.split('|');
+
+  const params = new URLSearchParams({
+    page: 1, limit: 5000,
+    sort: sortCol, direction: sortDir,
+  });
+  if (segment) params.set('segment', segment);
+  if (search)  params.set('search', search);
+
+  toast('Menyiapkan CSV...', 'success');
+  try {
+    const d = await fetch(`${API}/analytics/rfm/customers?${params}`).then(r => r.json());
+    if (!d.data || d.data.length === 0) { toast('Tidak ada data', 'error'); return; }
+
+    const headers = ['customer_id','name','city','province','rfm_segment','r_score','f_score','m_score','total_orders','total_revenue','avg_order_value','last_order_date','recency_days'];
+    const esc = v => v == null ? '' : `"${String(v).replace(/"/g,'""')}"`;
+    const csv = [headers.join(',')].concat(
+      d.data.map(r => headers.map(h => esc(r[h])).join(','))
+    ).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const tag = segment ? segment.replace(/\s+/g,'_') : 'all';
+    a.download = `rfm_${tag}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Export ${d.data.length} customer berhasil`, 'success');
+  } catch (e) {
+    toast('Gagal export CSV', 'error');
+  }
 }
 
 </script>

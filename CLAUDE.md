@@ -91,6 +91,8 @@ python3 load_data.py # butuh CSV: master_customers_v2.csv, master_orders.csv, dl
 | GET    | `/orders`                        | List order + filter status/platform/tanggal        |
 | GET    | `/analytics/summary`             | Summary stats (total customer, revenue, dll.)      |
 | GET    | `/analytics/revenue`             | Revenue breakdown per periode                      |
+| GET    | `/analytics/rfm`                 | Ringkasan segmen RFM (counts, revenue per segment) |
+| GET    | `/analytics/rfm/customers`       | List customer + skor R/F/M (filter segment/search) |
 | POST   | `/import/orderonline`            | Upload data bulanan OrderOnline (Excel)            |
 | POST   | `/import/mengantar`              | Upload data bulanan Mengantar (Excel)              |
 | GET    | `/leads`                         | List leads dengan pipeline status                  |

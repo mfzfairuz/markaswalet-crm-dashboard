@@ -446,6 +446,173 @@ def revenue_by_period(
 
     return {"data": rows_to_dict(result)}
 
+
+# ════════════════════════════════════════════════════════════════════
+# RFM SEGMENTATION (Recency, Frequency, Monetary)
+# ════════════════════════════════════════════════════════════════════
+# Skor 1-5 per dimensi (NTILE MySQL 8). Segment label = kombinasi R/F/M
+# mengikuti pola standar RFM.
+
+RFM_BASE_CTE = """
+    WITH base AS (
+        SELECT
+            customer_id, name, city, province,
+            total_orders,
+            COALESCE(total_revenue, 0) AS total_revenue,
+            COALESCE(avg_order_value, 0) AS avg_order_value,
+            last_order_date,
+            CASE
+                WHEN last_order_date IS NULL THEN NULL
+                ELSE DATEDIFF(CURDATE(), last_order_date)
+            END AS recency_days
+        FROM customers
+        WHERE total_orders > 0 AND last_order_date IS NOT NULL
+    ),
+    scored AS (
+        SELECT
+            b.*,
+            (6 - NTILE(5) OVER (ORDER BY recency_days ASC))  AS r_score,
+            NTILE(5) OVER (ORDER BY total_orders  ASC)       AS f_score,
+            NTILE(5) OVER (ORDER BY total_revenue ASC)       AS m_score
+        FROM base b
+    ),
+    labeled AS (
+        SELECT s.*,
+            CASE
+                WHEN r_score >= 4 AND f_score >= 4 AND m_score >= 4 THEN 'Champions'
+                WHEN r_score >= 3 AND f_score >= 4 AND m_score >= 4 THEN 'Loyal Customers'
+                WHEN r_score >= 4 AND f_score <= 2                    THEN 'New Customers'
+                WHEN r_score >= 3 AND f_score <= 3 AND m_score <= 3   THEN 'Promising'
+                WHEN r_score <= 2 AND f_score >= 4 AND m_score >= 4   THEN 'Cannot Lose Them'
+                WHEN r_score <= 2 AND f_score >= 3 AND m_score >= 3   THEN 'At Risk'
+                WHEN r_score <= 2 AND f_score <= 2 AND m_score <= 2   THEN 'Hibernating'
+                WHEN r_score = 1  AND f_score = 1  AND m_score = 1    THEN 'Lost'
+                ELSE 'Others'
+            END AS rfm_segment
+        FROM scored s
+    )
+"""
+
+RFM_SEGMENT_DESC = {
+    "Champions":        "Baru order, sering, nilai besar. Jaga & reward.",
+    "Loyal Customers":  "Repeat order konsisten. Tawarkan program loyalitas.",
+    "New Customers":    "Baru sekali beli. Edukasi & onboarding.",
+    "Promising":        "Transaksi baru, frekuensi masih rendah. Dorong repeat.",
+    "Cannot Lose Them": "Dulu VIP, mulai menghilang. Prioritas win-back.",
+    "At Risk":          "Dulu aktif, mulai jarang. Kirim reminder/promo.",
+    "Hibernating":      "Lama tidak order, value rendah. Coba re-engage murah.",
+    "Lost":             "Hampir tidak aktif. Arsipkan atau kampanye massal.",
+    "Others":           "Belum masuk kategori di atas.",
+}
+
+
+@app.get("/analytics/rfm")
+def rfm_summary(conn=Depends(get_db)):
+    """Ringkasan RFM: jumlah customer dan revenue per segment."""
+    result = conn.execute(text(f"""
+        {RFM_BASE_CTE}
+        SELECT
+            rfm_segment,
+            COUNT(*)                AS customers,
+            SUM(total_orders)       AS total_orders,
+            SUM(total_revenue)      AS total_revenue,
+            AVG(total_revenue)      AS avg_revenue,
+            AVG(recency_days)       AS avg_recency_days,
+            AVG(total_orders)       AS avg_frequency
+        FROM labeled
+        GROUP BY rfm_segment
+        ORDER BY total_revenue DESC
+    """))
+    rows = rows_to_dict(result)
+
+    total_customers = sum(r["customers"] for r in rows) or 1
+    total_revenue = sum(float(r["total_revenue"] or 0) for r in rows) or 1
+
+    segments = []
+    for r in rows:
+        revenue = float(r["total_revenue"] or 0)
+        segments.append({
+            "segment": r["rfm_segment"],
+            "description": RFM_SEGMENT_DESC.get(r["rfm_segment"], ""),
+            "customers": int(r["customers"]),
+            "customers_pct": round(r["customers"] / total_customers * 100, 1),
+            "total_orders": int(r["total_orders"] or 0),
+            "total_revenue": revenue,
+            "revenue_pct": round(revenue / total_revenue * 100, 1),
+            "avg_revenue": float(r["avg_revenue"] or 0),
+            "avg_recency_days": float(r["avg_recency_days"] or 0),
+            "avg_frequency": float(r["avg_frequency"] or 0),
+        })
+
+    return {
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "total_customers_scored": total_customers,
+        "total_revenue": total_revenue,
+        "segments": segments,
+    }
+
+
+@app.get("/analytics/rfm/customers")
+def rfm_customers(
+    segment: Optional[str] = Query(None, description="Filter segment RFM"),
+    search: Optional[str] = Query(None, description="Cari nama / nomor HP"),
+    sort: str = Query("total_revenue", description="total_revenue/total_orders/recency_days"),
+    direction: str = Query("desc"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=5000),
+    conn=Depends(get_db)
+):
+    """List customer dengan skor R/F/M + label segment."""
+    offset = (page - 1) * limit
+    where = ["1=1"]
+    params = {}
+
+    if segment:
+        where.append("rfm_segment = :segment")
+        params["segment"] = segment
+
+    if search:
+        phone = normalize_phone(search)
+        if phone:
+            where.append("customer_id LIKE :phone")
+            params["phone"] = f"{phone}%"
+        else:
+            where.append("name LIKE :name")
+            params["name"] = f"%{search}%"
+
+    sort_col = sort if sort in ("total_revenue", "total_orders", "recency_days", "r_score", "f_score", "m_score") else "total_revenue"
+    sort_dir = "ASC" if direction == "asc" else "DESC"
+    where_sql = " AND ".join(where)
+
+    total = conn.execute(
+        text(f"{RFM_BASE_CTE} SELECT COUNT(*) FROM labeled WHERE {where_sql}"),
+        params
+    ).scalar()
+
+    result = conn.execute(
+        text(f"""
+            {RFM_BASE_CTE}
+            SELECT customer_id, name, city, province,
+                   total_orders, total_revenue, avg_order_value,
+                   last_order_date, recency_days,
+                   r_score, f_score, m_score, rfm_segment
+            FROM labeled
+            WHERE {where_sql}
+            ORDER BY {sort_col} {sort_dir}
+            LIMIT :limit OFFSET :offset
+        """),
+        {**params, "limit": limit, "offset": offset}
+    )
+
+    return {
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": -(-total // limit) if total else 0,
+        "data": rows_to_dict(result),
+    }
+
+
 # ════════════════════════════════════════════════════════════════════
 # IMPORT DATA BULANAN
 # ════════════════════════════════════════════════════════════════════
