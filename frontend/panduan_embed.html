@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Panduan CS — Markaswalet CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FDFAF4;--bg2:#FFFFFF;--bg3:#F5F0E8;
+  --border:#E8E0CE;--border2:#D4C9B0;
+  --accent:#E8A020;--accent-dk:#C4841A;--accent-lt:#FEF3DC;
+  --text:#1A1A1A;--text2:#5A5040;--text3:#9A8E7A;
+  --success:#2A9D6F;--success-lt:#D4F5E7;
+  --danger:#D64C4C;--danger-lt:#FFE8E8;
+  --info:#2D7DD2;--info-lt:#DEEEFF;
+  --purple:#6B4FBB;--purple-lt:#EDE8FF;
+  --line:var(--border);
+  --font-head:'Syne',sans-serif;
+  --font-body:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);}
+
+/* TOPBAR */
+.topbar{
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:0 24px;height:54px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:50;
+  box-shadow:0 1px 4px rgba(0,0,0,0.04);
+}
+.topbar-left{display:flex;align-items:center;gap:14px;}
+.back-btn{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;padding:6px 12px;
+  font-family:var(--font-body);font-size:12px;font-weight:600;
+  color:var(--text2);cursor:pointer;text-decoration:none;
+  transition:all .15s ease;
+}
+.back-btn:hover{border-color:var(--accent);color:var(--accent-dk);}
+.topbar-title{font-family:var(--font-head);font-weight:700;font-size:15px;color:var(--text);}
+.topbar-sub{font-size:11px;color:var(--text3);}
+
+/* HEADER */
+.hdr{
+  background:linear-gradient(135deg,#2A1A06 0%,#3D2410 50%,#4A2E14 100%);
+  padding:28px 32px 24px;position:relative;overflow:hidden;
+}
+.hdr::before{content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;border-radius:50%;background:rgba(232,160,32,.12);}
+.hdr::after{content:'';position:absolute;bottom:-40px;left:30%;width:150px;height:150px;border-radius:50%;background:rgba(196,132,26,.08);}
+.hdr-tag{font-family:var(--font-head);font-size:10px;color:var(--accent);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:6px;position:relative;}
+.hdr h1{font-family:var(--font-head);font-size:26px;font-weight:800;color:#fff;line-height:1.25;margin-bottom:4px;position:relative;}
+.hdr p{font-size:13px;color:rgba(255,255,255,.45);position:relative;}
+.hdr-pills{display:flex;gap:8px;margin-top:12px;position:relative;flex-wrap:wrap;}
+.hdr-pill{font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.55);}
+.hdr-pill.active-pill{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+/* TABS */
+.tabs{
+  display:flex;background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:0 24px;overflow-x:auto;position:sticky;top:0;z-index:40;
+}
+.tab{
+  padding:11px 14px;font-size:11.5px;font-weight:500;color:var(--text3);
+  cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;
+  white-space:nowrap;transition:all .18s;display:flex;align-items:center;gap:5px;
+  font-family:var(--font-body);
+}
+.tab.active{color:var(--accent-dk);border-bottom-color:var(--accent);}
+.tab:hover:not(.active){color:var(--text);}
+.tab-sep{width:1px;height:18px;background:var(--border);margin:0 4px;flex-shrink:0;align-self:center;}
+
+/* PANELS */
+.panels{padding:20px 24px;max-width:100%;}
+.panel{display:none;animation:fadeIn .2s ease;}
+.panel.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* CARD */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,0.04);}
+.section-label{font-family:var(--font-head);font-size:11px;color:var(--accent-dk);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;font-weight:700;}
+.note{border-radius:8px;padding:10px 14px;font-size:12px;line-height:1.7;margin-bottom:12px;}
+.divider{height:1px;background:var(--border);margin:16px 0;}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+@media(min-width:560px){.kpi-grid{grid-template-columns:repeat(4,1fr);}}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,0.04);}
+.kpi-lbl{font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;}
+.kpi-val{font-family:var(--font-head);font-size:24px;font-weight:800;}
+.kpi-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.c-accent .kpi-val{color:var(--accent-dk);}
+.c-purple .kpi-val{color:var(--purple);}
+.c-danger .kpi-val{color:var(--danger);}
+.c-success .kpi-val{color:var(--success);}
+
+/* COMPARE */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+.cmp-side{border-radius:9px;padding:13px 15px;}
+.cmp-title{font-size:12px;font-weight:700;margin-bottom:7px;}
+.cmp-item{font-size:13px;color:var(--text2);line-height:2;}
+
+/* INSIGHT */
+.insight{border-radius:8px;padding:10px 13px;margin-bottom:8px;font-size:13px;line-height:1.8;}
+
+/* TRACK ACCORDION */
+.track{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.04);}
+.track-hdr{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;transition:background .15s;}
+.track-hdr:hover{background:var(--bg3);}
+.track-num{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:12px;font-weight:800;flex-shrink:0;}
+.track-info{flex:1;}
+.track-title{font-size:14px;font-weight:700;font-family:var(--font-head);}
+.track-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.track-badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;flex-shrink:0;}
+.track-chev{font-size:12px;color:var(--text3);transition:transform .25s;flex-shrink:0;}
+.track.open .track-chev{transform:rotate(180deg);}
+.track-body{display:none;padding:0 16px 16px;border-top:1px solid var(--border);}
+.track.open .track-body{display:block;}
+
+.t1 .track-num{background:var(--accent-lt);color:var(--accent-dk);}
+.t1 .track-title{color:var(--accent-dk);}
+.t1 .track-badge{background:var(--accent-lt);color:var(--accent-dk);}
+.t2 .track-num{background:var(--purple-lt);color:var(--purple);}
+.t2 .track-title{color:var(--purple);}
+.t2 .track-badge{background:var(--purple-lt);color:var(--purple);}
+.t3 .track-num{background:var(--success-lt);color:var(--success);}
+.t3 .track-title{color:var(--success);}
+.t3 .track-badge{background:var(--success-lt);color:var(--success);}
+.t4 .track-num{background:var(--danger-lt);color:var(--danger);}
+.t4 .track-title{color:var(--danger);}
+.t4 .track-badge{background:var(--danger-lt);color:var(--danger);}
+
+/* STEPS */
+.steps{margin-top:12px;display:flex;flex-direction:column;}
+.step{display:grid;grid-template-columns:66px 1fr;gap:0 12px;}
+.step-left{display:flex;flex-direction:column;align-items:center;}
+.step-day{font-family:var(--font-head);font-size:10px;font-weight:700;padding:3px 5px;border-radius:5px;text-align:center;flex-shrink:0;}
+.step-line{width:2px;flex:1;min-height:12px;background:var(--border);margin:3px 0;}
+.step:last-child .step-line{display:none;}
+.step-right{padding-bottom:13px;}
+.step-title{font-size:13px;font-weight:700;margin-bottom:2px;font-family:var(--font-head);}
+.step-desc{font-size:13px;color:var(--text2);line-height:1.6;}
+.step-tone{display:inline-block;font-size:10px;font-style:italic;color:var(--text3);margin-top:3px;padding:2px 6px;background:var(--bg3);border-radius:4px;}
+.beh{margin-top:7px;background:var(--bg3);border-radius:7px;padding:7px 10px;}
+.beh-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:3px;}
+.beh-row{font-size:11px;line-height:1.8;color:var(--text2);}
+
+/* SUB TRACK */
+.sub-track{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:9px;}
+.sub-hdr{padding:8px 12px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px;}
+.sub-body{padding:0 12px 11px;}
+
+/* CEK */
+.cek-wrap{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.cek{display:grid;grid-template-columns:48px 1fr;border:1px solid var(--border);border-radius:11px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.04);}
+.cek-num{display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:11px;font-weight:800;color:#fff;flex-shrink:0;writing-mode:vertical-rl;padding:12px 8px;letter-spacing:1px;}
+.cek-body{padding:12px 15px;background:var(--bg3);}
+.cek-title{font-size:14px;font-weight:700;margin-bottom:5px;font-family:var(--font-head);}
+.cek-desc{font-size:13px;color:var(--text2);margin-bottom:9px;}
+.cek-split{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.cek-opt{border-radius:8px;padding:9px 11px;font-size:11.5px;line-height:1.6;}
+
+/* SCENARIO */
+.sc-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.04);}
+.sc-hdr{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;transition:background .15s;}
+.sc-hdr:hover{background:var(--bg3);}
+.sc-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.sc-title{font-size:14px;font-weight:700;flex:1;font-family:var(--font-head);}
+.sc-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.sc-badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;flex-shrink:0;}
+.sc-chev{font-size:12px;color:var(--text3);transition:transform .25s;flex-shrink:0;}
+.sc-card.open .sc-chev{transform:rotate(180deg);}
+.sc-body{display:none;padding:0 16px 16px;border-top:1px solid var(--border);}
+.sc-card.open .sc-body{display:block;}
+
+/* BRIDGE */
+.bridge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px;cursor:pointer;border:none;margin-top:8px;font-family:var(--font-body);}
+.bridge:hover{opacity:.85;}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.tbl th{padding:10px 14px;background:var(--bg3);color:var(--text2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;text-align:left;border-bottom:1px solid var(--border);}
+.tbl td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.6;color:var(--text2);}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:var(--bg3);}
+.tbl .no{color:var(--danger);}
+.tbl .yes{color:var(--success);}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px;white-space:nowrap;}
+.quote-box{background:var(--bg3);border-left:3px solid;border-radius:0 7px 7px 0;padding:9px 13px;margin-top:10px;font-size:12px;font-style:italic;line-height:1.6;}
+
+/* FLOW */
+.flow-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;overflow-x:auto;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.04);}
+.flow-lbl{font-family:var(--font-head);font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;}
+.flow-cols{display:grid;gap:10px;min-width:540px;}
+.flow-cols-4{grid-template-columns:repeat(4,1fr);}
+.flow-cols-5{grid-template-columns:1fr 1fr 1fr 1fr 1fr;}
+.fc-hdr{font-size:10px;font-weight:700;text-align:center;padding:6px 8px;border-radius:7px;margin-bottom:7px;text-transform:uppercase;letter-spacing:1px;font-family:var(--font-head);}
+.fn{border:1px solid var(--border);border-radius:8px;padding:8px 9px;font-size:11px;line-height:1.5;margin-bottom:5px;background:var(--bg2);}
+.fn strong{display:block;font-size:11px;font-weight:700;margin-bottom:2px;}
+.fn.entry{border-left:3px solid;}
+.fn.decision{background:var(--bg3);font-style:italic;text-align:center;color:var(--text2);}
+.fn.good{background:var(--success-lt);border-color:var(--success);}
+.fn.muted{background:var(--bg3);border-color:var(--border2);}
+.fn.warn{background:var(--accent-lt);border-color:var(--accent);}
+.fa{text-align:center;color:var(--text3);font-size:12px;margin:1px 0;}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;}
+
+/* DARK BOX */
+.dark-box{font-size:13px;background:linear-gradient(135deg,#2A1A06,#3D2410);border-radius:12px;padding:18px 20px;color:rgba(255,255,255,.8);font-size:12px;line-height:1.8;margin-bottom:14px;}
+.dark-box-title{font-family:var(--font-head);font-weight:700;color:#fff;font-size:14px;margin-bottom:8px;}
+
+code{font-family:monospace;font-size:11px;background:var(--bg3);padding:2px 6px;border-radius:4px;}
+
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg3);}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+</style>
+</head>
+<body>
+
+
+
+<div class="hdr">
+  <div class="hdr-tag">CRM System · Markaswalet · PT Lentera Alam Nusantara</div>
+  <h1>Sistem CRM Markaswalet — Panduan Lengkap</h1>
+  <p>Broadcast Proaktif & Handling Chat Masuk — terintegrasi dalam satu sistem</p>
+  <div class="hdr-pills">
+    <span class="hdr-pill active-pill">Broadcast 4-Track</span>
+    <span class="hdr-pill">Chat Masuk</span>
+    <span class="hdr-pill">Behavior Triggers</span>
+    <span class="hdr-pill">SOP Naming</span>
+    <span class="hdr-pill">107 kampanye dianalisis</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="show('overview',this)"><span>📊</span> Overview</button>
+  <div class="tab-sep"></div>
+  <button class="tab" onclick="show('chatmasuk',this)"><span>💬</span> Chat Masuk</button>
+  <button class="tab" onclick="show('broadcast',this)"><span>📢</span> Broadcast Proaktif</button>
+  <button class="tab" onclick="show('skenario',this)"><span>🔀</span> 4 Skenario</button>
+  <div class="tab-sep"></div>
+  <button class="tab" onclick="show('flowdiagram',this)"><span>🗺</span> Flow Diagram</button>
+  <button class="tab" onclick="show('triggers',this)"><span>⚡</span> Triggers & Naming</button>
+  <button class="tab" onclick="show('ringkasan',this)"><span>📋</span> Ringkasan Cepat</button>
+</div>
+
+<div class="panels">
+
+<!-- OVERVIEW -->
+<div id="overview" class="panel active">
+  <div class="kpi-grid">
+    <div class="kpi c-accent"><div class="kpi-lbl">Track 1</div><div class="kpi-val">Akuisisi</div><div class="kpi-sub">Leads baru · 3x / 14 hari</div></div>
+    <div class="kpi c-purple"><div class="kpi-lbl">Track 2</div><div class="kpi-val">Nurturing</div><div class="kpi-sub">Belum konversi · 3x / 90 hari</div></div>
+    <div class="kpi c-success"><div class="kpi-lbl">Track 3</div><div class="kpi-val">Retention</div><div class="kpi-sub">Pelanggan Paid · by recency</div></div>
+    <div class="kpi c-danger"><div class="kpi-lbl">Track 4</div><div class="kpi-val">Win-back</div><div class="kpi-sub">Unpaid & Dormant · 3x lalu stop</div></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">2 Mode Sistem CRM</div>
+    <div class="cmp">
+      <div class="cmp-side" style="background:var(--accent-lt);">
+        <div class="cmp-title" style="color:var(--accent-dk);">📢 Broadcast Proaktif</div>
+        <div class="cmp-item">Tim yang inisiatif kirim pesan<br>Terjadwal berdasarkan track & pool<br>Target: leads, paid, unpaid, dormant<br>→ Tab "Broadcast Proaktif"</div>
+      </div>
+      <div class="cmp-side" style="background:var(--purple-lt);">
+        <div class="cmp-title" style="color:var(--purple);">💬 Chat Masuk (Reaktif)</div>
+        <div class="cmp-item">Mereka yang inisiatif hubungi CS<br>Identifikasi dulu sebelum reply<br>CEK 1 → CEK 2 → Skenario A/B/C/D<br>→ Tab "Chat Masuk"</div>
+      </div>
+    </div>
+    <div class="note" style="background:var(--bg3);color:var(--text2);">Kedua mode pakai framework yang sama (4-track, segmen yang sama) tapi trigger berbeda. Broadcast = kita yang mulai. Chat masuk = mereka yang mulai. Keputusan akhir selalu mengarah ke track yang sama.</div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Perbedaan sistem lama vs baru</div>
+    <div class="cmp">
+      <div class="cmp-side" style="background:var(--danger-lt);">
+        <div class="cmp-title" style="color:var(--danger);">❌ Sistem Sekarang</div>
+        <div class="cmp-item">· Blast-based, satu jalur semua segmen<br>· Konten sama ke Leads, Paid, Unpaid<br>· Jadwal berdasarkan waktu saja<br>· Tidak ada mekanisme stop<br>· Chat masuk tidak teridentifikasi dulu<br>· Naming tidak konsisten</div>
+      </div>
+      <div class="cmp-side" style="background:var(--success-lt);">
+        <div class="cmp-title" style="color:var(--success);">✅ Sistem Baru</div>
+        <div class="cmp-item">· 4 jalur terpisah per profil kontak<br>· Konten disesuaikan per tahap & segmen<br>· Trigger berdasarkan behavior respons<br>· Ada titik berhenti (arsip setelah 3x)<br>· Chat masuk diidentifikasi sebelum reply<br>· SOP naming wajib konsisten</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Insight dari 107 kampanye broadcast Markaswalet (Mei 2025 – Apr 2026)</div>
+    <div class="insight" style="background:var(--accent-lt);"><strong style="color:var(--accent-dk);">Leads dominan</strong> — 77 dari 107 kampanye menyasar Leads. Tim aktif buat list baru tiap minggu. Avg lag ke leads: 1.3 bulan → fresh nurturing strategy sudah berjalan tapi belum terstruktur.</div>
+    <div class="insight" style="background:var(--purple-lt);"><strong style="color:var(--purple);">Paid perlu rotasi sistematis</strong> — avg lag ke Paid 10.9 bulan, ada yang sampai 25 bulan. Paid Mei 2025 dibroadcast 5x sementara banyak bulan lain belum pernah disentuh.</div>
+    <div class="insight" style="background:var(--accent-lt);"><strong style="color:var(--accent-dk);">Unpaid diabaikan</strong> — hanya 6 dari 107 kampanye (5.7%) ke Unpaid. Padahal Unpaid adalah kontak paling warm setelah Paid — pernah ada di pipeline, pernah minat.</div>
+    <div class="insight" style="background:var(--danger-lt);"><strong style="color:var(--danger);">Tidak ada mekanisme exit</strong> — kontak yang tidak pernah respon tetap terus dibroadcast tanpa batas. Membuang kuota dan merusak deliverability.</div>
+  </div>
+</div>
+
+<!-- BROADCAST -->
+<div id="broadcast" class="panel">
+  <div class="note" style="background:var(--accent-lt);color:var(--accent-dk);">Broadcast proaktif = tim yang inisiatif kirim pesan secara terjadwal. Pool leads dibuat semi-mingguan. Perpindahan antar track berdasarkan behavior respons.</div>
+
+  <div class="track t1 open">
+    <div class="track-hdr" onclick="tog(this)">
+      <div class="track-num">T1</div>
+      <div class="track-info"><div class="track-title">Akuisisi — Leads Baru</div><div class="track-sub">Pool semi-mingguan · Pool A: Senin-Rabu, Pool B: Kamis-Minggu</div></div>
+      <span class="track-badge">3x / 14 hari</span><span class="track-chev">▾</span>
+    </div>
+    <div class="track-body">
+      <div style="font-size:11px;color:var(--text3);margin:10px 0 4px;">Naming: <code>Leads [DD-DD] [Bulan] [YYYY]</code> · Lag maksimal 3-4 hari</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-left"><div class="step-day" style="background:var(--accent-lt);color:var(--accent-dk);">D+3</div><div class="step-line"></div></div>
+          <div class="step-right">
+            <div class="step-title">Broadcast 1 — Katalog Produk</div>
+            <div class="step-desc">Perkenalkan produk utama (parfum, anti jamur, suara). Tidak langsung jualan — tunjukkan value dan relevansi untuk kondisi RBW mereka.</div>
+            <div class="step-tone">Tone: informatif, ramah, tidak hard sell</div>
+            <div class="beh"><div class="beh-lbl">Behavior Check</div><div class="beh-row">💬 Balas / tanya → Tag HOT, sales handle manual</div><div class="beh-row">→ Tidak respon → lanjut D+7</div></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-day" style="background:var(--accent-lt);color:var(--accent-dk);">D+7</div><div class="step-line"></div></div>
+          <div class="step-right">
+            <div class="step-title">Broadcast 2 — Edukasi Spesifik</div>
+            <div class="step-desc">Sesuaikan label leads: parfum → edukasi parfum NH3X, anti jamur → edukasi sirip berjamur/kelembaban. Bangun trust lewat pengetahuan.</div>
+            <div class="step-tone">Tone: edukatif, problem-solving</div>
+            <div class="beh"><div class="beh-lbl">Behavior Check</div><div class="beh-row">💬 Balas → Sales handle</div><div class="beh-row">→ Tidak respon → lanjut D+14</div></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-day" style="background:var(--accent-lt);color:var(--accent-dk);">D+14</div></div>
+          <div class="step-right">
+            <div class="step-title">Broadcast 3 — Promo / Penawaran Pertama</div>
+            <div class="step-desc">Beli 2 gratis, diskon bundle, urgency ringan. Titik keputusan pertama. Jika closing → keluar dari list ini secepatnya.</div>
+            <div class="step-tone">Tone: urgensi ringan, menggiurkan tapi tidak memaksa</div>
+            <div class="beh"><div class="beh-lbl">Behavior Check</div><div class="beh-row">✅ Beli → Masuk Track 3 Paid Fresh</div><div class="beh-row">→ Tidak beli 48 jam → Masuk Track 2</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="track t2">
+    <div class="track-hdr" onclick="tog(this)">
+      <div class="track-num">T2</div>
+      <div class="track-info"><div class="track-title">Nurturing — Leads 15–90 Hari</div><div class="track-sub">Sudah 3x broadcast Track 1 tapi belum beli</div></div>
+      <span class="track-badge">3x / 75 hari</span><span class="track-chev">▾</span>
+    </div>
+    <div class="track-body">
+      <div style="font-size:11px;color:var(--text3);margin:10px 0 12px;">Naming: <code>Nurturing [Bulan] [YYYY]</code></div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-left"><div class="step-day" style="background:var(--purple-lt);color:var(--purple);">D+30</div><div class="step-line"></div></div>
+          <div class="step-right"><div class="step-title">Broadcast 4 — Edukasi Lanjutan (Topik Berbeda)</div><div class="step-desc">Sudah dapat edukasi parfum → kirim anti jamur / sirip berjamur / suhu. Jangan kirim konten yang sama persis.</div><div class="step-tone">Tone: insightful, bermanfaat, tidak ada agenda jualan</div></div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-day" style="background:var(--purple-lt);color:var(--purple);">D+45</div><div class="step-line"></div></div>
+          <div class="step-right"><div class="step-title">Broadcast 5 — Social Proof / Testimoni</div><div class="step-desc">Cerita sukses peternak walet yang pakai produk. Hasil nyata, bukan klaim. Foto gedung, data panen meningkat.</div><div class="step-tone">Tone: storytelling, peer validation, relatable</div></div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-day" style="background:var(--purple-lt);color:var(--purple);">D+60</div></div>
+          <div class="step-right">
+            <div class="step-title">Broadcast 6 — Promo Lebih Agresif</div>
+            <div class="step-desc">Penawaran lebih menarik dari B3. Bonus, garansi, atau harga spesial yang tidak ada untuk leads baru. Deadline jelas.</div>
+            <div class="step-tone">Tone: eksklusif, FOMO, last chance</div>
+            <div class="beh"><div class="beh-lbl">Behavior Check (D+90)</div><div class="beh-row">✅ Beli → Masuk Track 3 Paid Fresh</div><div class="beh-row">→ Tidak respon → Masuk Track 4 Win-back</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="track t3">
+    <div class="track-hdr" onclick="tog(this)">
+      <div class="track-num">T3</div>
+      <div class="track-info"><div class="track-title">Retention — Segmen Paid</div><div class="track-sub">Pelanggan yang sudah beli · 3 sub-segmen by recency</div></div>
+      <span class="track-badge">3 sub-segmen</span><span class="track-chev">▾</span>
+    </div>
+    <div class="track-body">
+      <div style="font-size:11px;color:var(--text3);margin:10px 0 4px;">Naming: <code>Paid [Bulan] [YYYY] — Fresh / Lama / Dormant</code></div>
+      <div class="sub-track">
+        <div class="sub-hdr" style="background:var(--success-lt);color:var(--success);">🟢 Paid Fresh — 0–3 bulan sejak beli · 3x / 3 bulan</div>
+        <div class="sub-body">
+          <div class="steps" style="margin-top:10px;">
+            <div class="step"><div class="step-left"><div class="step-day" style="background:var(--success-lt);color:var(--success);">+1 bln</div><div class="step-line"></div></div><div class="step-right"><div class="step-title">Edukasi Penggunaan Produk</div><div class="step-desc">Tips pemakaian optimal. After-sales care — bukan jualan lagi.</div><div class="step-tone">Tone: after-sales, personal</div></div></div>
+            <div class="step"><div class="step-left"><div class="step-day" style="background:var(--success-lt);color:var(--success);">+2 bln</div><div class="step-line"></div></div><div class="step-right"><div class="step-title">Upsell / Cross-sell</div><div class="step-desc">Beli parfum → tawarkan anti jamur. Rekomendasi natural berbasis kondisi RBW mereka.</div><div class="step-tone">Tone: rekomendasi teman, bukan iklan</div></div></div>
+            <div class="step"><div class="step-left"><div class="step-day" style="background:var(--success-lt);color:var(--success);">+3 bln</div></div><div class="step-right"><div class="step-title">Re-order Reminder</div><div class="step-desc">"Stok parfum Pak Bos mungkin sudah habis." Dorong repeat order sebelum cari kompetitor.</div><div class="step-tone">Tone: reminder personal, helpful</div><div class="beh"><div class="beh-lbl">Setelah +3 bulan</div><div class="beh-row">✅ Re-order → Stay Fresh, reset timer</div><div class="beh-row">→ Tidak re-order → Geser ke Paid Lama</div></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub-track" style="margin-top:8px;">
+        <div class="sub-hdr" style="background:var(--accent-lt);color:var(--accent-dk);">🟡 Paid Lama — 4–12 bulan sejak beli · 1x / 2 bulan</div>
+        <div class="sub-body"><div style="font-size:13px;color:var(--text2);margin-top:10px;line-height:1.9;"><strong>Setiap 2 bulan:</strong> Update produk baru — tone insider, pelanggan loyal<br><strong>Setiap 3 bulan:</strong> Promo loyalty — diskon khusus pelanggan lama<br><strong>Jika >12 bulan tidak order:</strong> Geser ke Paid Dormant → Track 4</div></div>
+      </div>
+      <div class="sub-track" style="margin-top:8px;">
+        <div class="sub-hdr" style="background:var(--bg3);color:var(--text3);">🔴 Paid Dormant — lebih dari 12 bulan tidak re-order → masuk Track 4</div>
+        <div class="sub-body"><div style="font-size:13px;color:var(--text2);margin-top:10px;line-height:1.7;">Stop broadcast dari Track 3. Langsung masuk Track 4 dengan pendekatan fresh start. Jangan kirim konten loyalty — mereka sudah cold.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="track t4">
+    <div class="track-hdr" onclick="tog(this)">
+      <div class="track-num">T4</div>
+      <div class="track-info"><div class="track-title">Win-back — Unpaid & Paid Dormant</div><div class="track-sub">Pernah di pipeline tapi hilang · atau paid lama tidak order lagi</div></div>
+      <span class="track-badge">3x LALU STOP</span><span class="track-chev">▾</span>
+    </div>
+    <div class="track-body">
+      <div style="font-size:11px;color:var(--text3);margin:10px 0 4px;">Naming: <code>Winback [Bulan] [YYYY]</code></div>
+      <div class="note" style="background:var(--danger-lt);color:var(--danger);">⚠️ Setelah 3x tidak respon → ARSIP. Stop semua broadcast. Tidak ada pengecualian.</div>
+      <div class="steps">
+        <div class="step"><div class="step-left"><div class="step-day" style="background:var(--danger-lt);color:var(--danger);">Bln 1</div><div class="step-line"></div></div><div class="step-right"><div class="step-title">Win-back 1 — Konten Nilai Tinggi (Bukan Promo)</div><div class="step-desc">Edukasi yang sangat relevan: "Kenapa walet susah berkembang?" Buat mereka rugi kalau tidak baca. Tidak ada agenda jualan.</div><div class="step-tone">Tone: problem-solving, genuinely helpful</div></div></div>
+        <div class="step"><div class="step-left"><div class="step-day" style="background:var(--danger-lt);color:var(--danger);">Bln 2</div><div class="step-line"></div></div><div class="step-right"><div class="step-title">Win-back 2 — Penawaran Comeback (Angle Berbeda)</div><div class="step-desc">"Kami punya produk baru yang belum pernah Pak Bos coba." Fresh start — jangan sebut pesan lama.</div><div class="step-tone">Tone: fresh start, tidak mengingatkan riwayat non-respons</div></div></div>
+        <div class="step"><div class="step-left"><div class="step-day" style="background:var(--danger-lt);color:var(--danger);">Bln 3</div></div><div class="step-right">
+          <div class="step-title">Win-back 3 — Last Call</div>
+          <div class="step-desc">"Ini terakhir kami hubungi sebelum kami hapus kontakmu." Jujur dan tegas.</div>
+          <div class="step-tone">Tone: jujur, menghargai pilihan mereka</div>
+          <div class="beh"><div class="beh-lbl">Setelah Win-back 3</div><div class="beh-row">✅ Respon / beli → kembali ke Track 1 atau Track 3</div><div class="beh-row">🗂 Tidak respon → ARSIP — stop semua broadcast</div></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT MASUK -->
+<div id="chatmasuk" class="panel">
+  <div class="note" style="background:var(--purple-lt);color:var(--purple);">Chat masuk = mereka yang inisiatif hubungi CS. Wajib identifikasi dulu sebelum reply apapun. Estimasi: 3–5 detik. Setelah identifikasi, kontak masuk ke track yang sesuai di sistem broadcast.</div>
+  <div class="cek-wrap">
+    <div class="cek">
+      <div class="cek-num" style="background:var(--accent);">CEK 1</div>
+      <div class="cek-body">
+        <div class="cek-title">Apakah nomor ini sudah ada di database Cekat?</div>
+        <div class="cek-desc">Cara cek: klik nama kontak → lihat apakah ada riwayat chat atau data di Additional Data.</div>
+        <div class="cek-split">
+          <div class="cek-opt" style="background:var(--danger-lt);"><strong style="color:var(--danger);">❌ Tidak ada di database</strong><br><span style="color:var(--text2);font-size:11px;">= KONTAK BARU<br>Tagging COLD / WARM / HOT → masuk pool akuisisi semi-mingguan → Track 1</span><br><button class="bridge" style="background:var(--accent-lt);color:var(--accent-dk);" onclick="showTab('broadcast')">→ Lihat Track 1 detail</button></div>
+          <div class="cek-opt" style="background:var(--success-lt);"><strong style="color:var(--success);">✅ Ada di database</strong><br><span style="color:var(--text2);font-size:11px;">= KONTAK EXISTING<br>Jangan perlakukan sebagai leads baru. Lanjut ke CEK 2 untuk tentukan skenario.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cek">
+      <div class="cek-num" style="background:var(--purple);">CEK 2</div>
+      <div class="cek-body">
+        <div class="cek-title">Apa pipeline status dan track broadcast terakhirnya?</div>
+        <div class="cek-desc">Cara cek: lihat pipeline status di Cekat + label chat terakhir.</div>
+        <table class="tbl">
+          <thead><tr><th>Pipeline Status</th><th>Artinya</th><th>Skenario</th><th>Track Broadcast</th></tr></thead>
+          <tbody>
+            <tr><td>✅ Completed / Paid</td><td>Pernah beli, pelanggan aktif</td><td><span class="badge" style="background:var(--success-lt);color:var(--success);">Skenario A</span></td><td>Stay / masuk Track 3</td></tr>
+            <tr><td>🆕 New Lead / Asking / Consultation / Interested</td><td>Leads aktif di Track 1 atau 2</td><td><span class="badge" style="background:var(--purple-lt);color:var(--purple);">Skenario B</span></td><td>Lanjutkan di track aktif</td></tr>
+            <tr><td>❌ Closed Lost kurang dari 3 bulan</td><td>Tidak jadi beli, masih segar</td><td><span class="badge" style="background:var(--accent-lt);color:var(--accent-dk);">Skenario C</span></td><td>Sales handle → T1 atau T3</td></tr>
+            <tr><td>❌ Closed Lost lebih 3 bulan / Track 4 / Arsip</td><td>Sudah lama hilang, kembali sendiri</td><td><span class="badge" style="background:var(--purple-lt);color:var(--purple);">Skenario D</span></td><td>Fresh start → T1 atau T3</td></tr>
+          </tbody>
+        </table>
+        <button class="bridge" style="background:var(--purple-lt);color:var(--purple);margin-top:10px;" onclick="showTab('skenario')">→ Buka panduan 4 Skenario lengkap</button>
+      </div>
+    </div>
+  </div>
+  <div class="dark-box">
+    <div class="dark-box-title">Catatan: Database Terpusat (on going)</div>
+    Saat ini CEK 1 & CEK 2 dilakukan manual di Cekat (3–5 detik). Ketika sistem customer 360 view aktif, data ini akan otomatis muncul saat chat masuk — CS tidak perlu scroll manual. SOP akan diperbarui ke v2.1 saat infrastruktur siap.
+  </div>
+</div>
+
+<!-- 4 SKENARIO -->
+<div id="skenario" class="panel">
+  <div class="note" style="background:var(--bg3);color:var(--text2);">Setelah CEK 2 di tab "Chat Masuk", gunakan skenario berikut untuk tahu cara handle dan ke track mana kontak diarahkan.</div>
+
+  <div class="sc-card open">
+    <div class="sc-hdr" onclick="togSc(this)">
+      <div class="sc-icon" style="background:var(--success-lt);">🏆</div>
+      <div><div class="sc-title" style="color:var(--success);">Skenario A — Pelanggan Aktif</div><div class="sc-sub">Pipeline: Completed / Paid · pernah beli sebelumnya</div></div>
+      <span class="sc-badge" style="background:var(--success-lt);color:var(--success);">→ Stay Track 3</span>
+      <span class="sc-chev">▾</span>
+    </div>
+    <div class="sc-body">
+      <div class="note" style="background:var(--success-lt);color:var(--success);">Ini pelanggan, bukan leads. Layanan lebih hangat dan prioritas.</div>
+      <table class="tbl">
+        <thead><tr><th>Kondisi Chat</th><th>Tindakan CS</th><th class="no">Pantangan</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Mau order lagi</strong></td><td>Sambut dengan nama. Proses langsung tanpa tanya ulang data. Stay Track 3 Fresh, reset timer.</td><td class="no">Tanya ulang data yang sudah ada</td></tr>
+          <tr><td><strong>Tanya produk baru</strong></td><td>Edukasi sesuai kebutuhan RBW-nya. Arahkan ke closing.</td><td class="no">Kirim katalog generik</td></tr>
+          <tr><td><strong>Komplain</strong></td><td>Prioritaskan. HEARD dulu. Selesaikan sebelum tawarkan produk baru.</td><td class="no">Tawarkan produk di tengah komplain</td></tr>
+          <tr><td><strong>Sekadar tanya</strong></td><td>Jawab ramah. Tanya kondisi RBW terbaru. Update Additional Data.</td><td class="no">Biarkan tanpa update data</td></tr>
+        </tbody>
+      </table>
+      <div class="quote-box" style="border-color:var(--success);color:var(--success);">"Halo Pak Bos [nama], senang dengar kabar lagi! Ada yang bisa kami bantu hari ini? 😊"</div>
+    </div>
+  </div>
+
+  <div class="sc-card">
+    <div class="sc-hdr" onclick="togSc(this)">
+      <div class="sc-icon" style="background:var(--purple-lt);">🔄</div>
+      <div><div class="sc-title" style="color:var(--purple);">Skenario B — Leads Aktif</div><div class="sc-sub">Track 1 atau 2, belum pernah beli · pipeline masih aktif</div></div>
+      <span class="sc-badge" style="background:var(--purple-lt);color:var(--purple);">→ Skip ke Closing</span>
+      <span class="sc-chev">▾</span>
+    </div>
+    <div class="sc-body">
+      <div class="note" style="background:var(--purple-lt);color:var(--purple);">Dia sudah dalam funnel broadcast. Jangan kirim ulang konten yang sudah diterima. Dia yang chat duluan = sudah warm = momen closing terbaik.</div>
+      <table class="tbl">
+        <thead><tr><th>Posisi di Track</th><th>Tindakan CS</th><th class="no">Pantangan</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Baru dapat B1 (Katalog)</strong></td><td>Jawab pertanyaannya. Bisa langsung skip ke closing.</td><td class="no">Kirim ulang katalog yang sama</td></tr>
+          <tr><td><strong>Sudah dapat B1+B2, belum B3</strong></td><td>Jawab + arahkan ke penawaran. Ini momen closing terbaik.</td><td class="no">Tunda closing dengan alasan "nunggu jadwal"</td></tr>
+          <tr><td><strong>Di Track 2 (Nurturing)</strong></td><td>Dia kembali sendiri = sinyal kuat. Langsung arahkan ke closing.</td><td class="no">Mulai lagi dari edukasi dasar</td></tr>
+        </tbody>
+      </table>
+      <div class="note" style="background:var(--accent-lt);color:var(--accent-dk);margin-top:10px;">Leads aktif yang chat sendiri = tag HOT, skip jadwal broadcast, CS handle langsung. Closing → Track 3. Belum closing → lanjutkan di posisi track sebelumnya.</div>
+    </div>
+  </div>
+
+  <div class="sc-card">
+    <div class="sc-hdr" onclick="togSc(this)">
+      <div class="sc-icon" style="background:var(--accent-lt);">↩️</div>
+      <div><div class="sc-title" style="color:var(--accent-dk);">Skenario C — Closed Lost Baru</div><div class="sc-sub">Tidak jadi beli, tapi kurang dari 3 bulan lalu · kembali sendiri</div></div>
+      <span class="sc-badge" style="background:var(--accent-lt);color:var(--accent-dk);">→ Sales Handle Langsung</span>
+      <span class="sc-chev">▾</span>
+    </div>
+    <div class="sc-body">
+      <div class="note" style="background:var(--accent-lt);color:var(--accent-dk);">Pernah di pipeline tapi tidak closing. Sekarang chat sendiri = ada trigger internal. Tidak perlu 3 bulan win-back — sales handle langsung.</div>
+      <table class="tbl">
+        <thead><tr><th>Kondisi</th><th>Tindakan CS</th><th class="no">Pantangan</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Closed Lost kurang 1 bulan</strong></td><td>Sambut hangat. Tanya kebutuhan sekarang. Jangan singgung kenapa dulu tidak jadi beli.</td><td class="no">Tanya kenapa dulu batal</td></tr>
+          <tr><td><strong>Closed Lost 1–3 bulan</strong></td><td>Sambut hangat + tawarkan produk/promo terbaru yang belum pernah dia lihat.</td><td class="no">Kirim konten yang sama dengan yang dulu tidak mempan</td></tr>
+        </tbody>
+      </table>
+      <div class="quote-box" style="border-color:var(--accent);color:var(--accent-dk);">"Halo Pak Bos [nama], ada yang bisa kami bantu? Ada produk terbaru yang mungkin cocok untuk kondisi RBW Pak Bos sekarang."</div>
+    </div>
+  </div>
+
+  <div class="sc-card">
+    <div class="sc-hdr" onclick="togSc(this)">
+      <div class="sc-icon" style="background:var(--purple-lt);">🔮</div>
+      <div><div class="sc-title" style="color:var(--purple);">Skenario D — Kontak Kembali dari Track 4 / Arsip</div><div class="sc-sub">Lebih dari 3 bulan hilang · kembali sendiri tanpa dibroadcast</div></div>
+      <span class="sc-badge" style="background:var(--purple-lt);color:var(--purple);">→ Fresh Start Total</span>
+      <span class="sc-chev">▾</span>
+    </div>
+    <div class="sc-body">
+      <div class="note" style="background:var(--purple-lt);color:var(--purple);">Skenario terbaik dari win-back. Dia yang inisiatif kembali = ada kebutuhan mendesak. Tangani dengan fresh start total.</div>
+      <table class="tbl">
+        <thead><tr><th>Tindakan</th><th>Detail</th><th class="no">Pantangan</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Fresh start total</strong></td><td>Tidak perlu sebut pernah di-winback. Mulai seperti pertama kali tapi tetap personal.</td><td class="no">Sebut "kami sudah coba hubungi berkali-kali"</td></tr>
+          <tr><td><strong>Dengarkan dulu</strong></td><td>Tanya apa yang bisa dibantu. Biarkan mereka cerita kebutuhannya.</td><td class="no">Langsung kirim katalog atau promo</td></tr>
+          <tr><td><strong>Tentukan jalur</strong></td><td>Cuma tanya → masuk Track 1. Langsung mau beli → Track 3 Paid Fresh.</td><td class="no">Biarkan status ambigu tanpa update Cekat</td></tr>
+          <tr><td><strong>Update Cekat</strong></td><td>Ubah dari Arsip ke New Lead atau Completed sesuai hasil percakapan.</td><td class="no">Lupa update setelah percakapan selesai</td></tr>
+        </tbody>
+      </table>
+      <div class="quote-box" style="border-color:var(--purple);color:var(--purple);">"Halo Pak Bos [nama], ada yang bisa kami bantu? Kami siap konsultasi kapan saja."</div>
+    </div>
+  </div>
+</div>
+
+<!-- FLOW DIAGRAM -->
+<div id="flowdiagram" class="panel">
+  <div class="flow-wrap">
+    <div class="flow-lbl">A — Broadcast Proaktif: perpindahan antar track (tim yang inisiatif)</div>
+    <div class="flow-cols flow-cols-4">
+      <div>
+        <div class="fc-hdr" style="background:var(--accent-lt);color:var(--accent-dk);">T1 Akuisisi</div>
+        <div class="fn entry" style="border-left-color:var(--accent-dk);"><strong>Leads Baru</strong>Pool semi-mingguan</div>
+        <div class="fa">↓</div><div class="fn">D+3 Katalog</div>
+        <div class="fa">↓</div><div class="fn">D+7 Edukasi</div>
+        <div class="fa">↓</div><div class="fn">D+14 Promo</div>
+        <div class="fa">↓</div><div class="fn decision">Beli?</div>
+        <div class="fa">↓ tidak</div><div class="fn muted">→ Track 2</div>
+        <div style="font-size:10px;color:var(--accent-dk);font-weight:700;margin-top:4px;">↗ Beli → T3 · Balas → HOT</div>
+      </div>
+      <div>
+        <div class="fc-hdr" style="background:var(--purple-lt);color:var(--purple);">T2 Nurturing</div>
+        <div class="fn entry" style="border-left-color:var(--purple);"><strong>Dari T1 D+14</strong>Tidak beli</div>
+        <div class="fa">↓</div><div class="fn">D+30 Edukasi lanjutan</div>
+        <div class="fa">↓</div><div class="fn">D+45 Testimoni</div>
+        <div class="fa">↓</div><div class="fn">D+60 Promo agresif</div>
+        <div class="fa">↓</div><div class="fn decision">Beli D+90?</div>
+        <div class="fa">↓ tidak</div><div class="fn muted">→ Track 4</div>
+        <div style="font-size:10px;color:var(--purple);font-weight:700;margin-top:4px;">↗ Beli → T3</div>
+      </div>
+      <div>
+        <div class="fc-hdr" style="background:var(--success-lt);color:var(--success);">T3 Retention</div>
+        <div class="fn entry" style="border-left-color:var(--success);"><strong>Masuk saat Beli</strong>dari T1 atau T2</div>
+        <div class="fa">↓</div>
+        <div class="fn" style="border-left:3px solid var(--success);"><strong>Fresh 0–3 bln</strong>Penggunaan · Upsell · Re-order</div>
+        <div class="fa">↓ tidak re-order</div>
+        <div class="fn" style="border-left:3px solid var(--accent-dk);"><strong>Lama 4–12 bln</strong>Update · Loyalty promo</div>
+        <div class="fa">↓ &gt;12 bln</div>
+        <div class="fn muted">Dormant → T4</div>
+      </div>
+      <div>
+        <div class="fc-hdr" style="background:var(--danger-lt);color:var(--danger);">T4 Win-back</div>
+        <div class="fn entry" style="border-left-color:var(--danger);"><strong>Dari T2 atau T3</strong>Tidak respon / Dormant</div>
+        <div class="fa">↓</div><div class="fn">Bln 1 Konten nilai</div>
+        <div class="fa">↓</div><div class="fn">Bln 2 Comeback</div>
+        <div class="fa">↓</div><div class="fn">Bln 3 Last Call</div>
+        <div class="fa">↓</div><div class="fn decision">Respon?</div>
+        <div class="fg"><div class="fn good" style="font-size:10px;">Ya → T1/T3</div><div class="fn muted" style="font-size:10px;text-align:center;">Tidak → Arsip</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-wrap">
+    <div class="flow-lbl">B — Chat Masuk Reaktif: identifikasi → skenario → track</div>
+    <div class="flow-cols flow-cols-5">
+      <div>
+        <div class="fc-hdr" style="background:var(--text);color:#fff;">Chat Masuk</div>
+        <div class="fn entry" style="border-left-color:var(--text);"><strong>Ada yang chat</strong>Siapapun</div>
+        <div class="fa">↓</div><div class="fn decision">CEK 1:<br>Ada di DB?</div>
+        <div class="fa">↓ tidak</div><div class="fn good"><strong>Kontak Baru</strong>Tag → pool T1</div>
+        <div class="fa">↓ ya</div><div class="fn decision">CEK 2:<br>Pipeline?</div>
+      </div>
+      <div>
+        <div class="fc-hdr" style="background:var(--success-lt);color:var(--success);">Skenario A</div>
+        <div class="fn entry" style="border-left-color:var(--success);"><strong>Pipeline: Completed</strong>Pernah beli</div>
+        <div class="fa">↓</div><div class="fn warn"><strong>Layanan prioritas</strong>Sambut dengan nama</div>
+        <div class="fa">↓</div><div class="fn decision">Intent?</div>
+        <div class="fg" style="margin-top:4px;"><div class="fn good" style="font-size:10px;">Order → T3</div><div class="fn muted" style="font-size:10px;">Tanya → Edukasi</div></div>
+      </div>
+      <div>
+        <div class="fc-hdr" style="background:var(--purple-lt);color:var(--purple);">Skenario B</div>
+        <div class="fn entry" style="border-left-color:var(--purple);"><strong>Pipeline aktif T1/T2</strong>Leads aktif</div>
+        <div class="fa">↓</div><div class="fn warn"><strong>Sudah warm!</strong>Skip jadwal BC</div>
+        <div class="fa">↓</div><div class="fn decision">Closing?</div>
+        <div class="fg" style="margin-top:4px;"><div class="fn good" style="font-size:10px;">Ya → T3</div><div class="fn muted" style="font-size:10px;">Belum → stay</div></div>
+      </div>
+      <div>
+        <div class="fc-hdr" style="background:var(--accent-lt);color:var(--accent-dk);">Skenario C</div>
+        <div class="fn entry" style="border-left-color:var(--accent-dk);"><strong>Closed Lost &lt;3 bln</strong>Kembali sendiri</div>
+        <div class="fa">↓</div><div class="fn warn"><strong>Ada trigger internal</strong>Fresh angle</div>
+        <div class="fa">↓</div><div class="fn decision">Sales handle</div>
+        <div class="fg" style="margin-top:4px;"><div class="fn good" style="font-size:10px;">Closing → T3</div><div class="fn muted" style="font-size:10px;">Belum → T1</div></div>
+      </div>
+      <div>
+        <div class="fc-hdr" style="background:var(--purple-lt);color:var(--purple);">Skenario D</div>
+        <div class="fn entry" style="border-left-color:var(--purple);"><strong>T4 / Arsip &gt;3 bln</strong>Kembali sendiri</div>
+        <div class="fa">↓</div><div class="fn warn"><strong>Fresh start total</strong>Dengarkan dulu</div>
+        <div class="fa">↓</div><div class="fn decision">Intent?</div>
+        <div class="fg" style="margin-top:4px;"><div class="fn good" style="font-size:10px;">Beli → T3</div><div class="fn muted" style="font-size:10px;">Tanya → T1</div></div>
+        <div style="font-size:10px;color:var(--purple);font-weight:700;margin-top:5px;text-align:center;">Update Cekat!</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TRIGGERS & NAMING -->
+<div id="triggers" class="panel">
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table class="tbl">
+      <thead><tr><th style="width:24%">Trigger / Event</th><th style="width:16%">Dari</th><th style="width:20%">Aksi</th><th>Catatan</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Leads masuk pool semi-mingguan</strong></td><td>—</td><td><span class="badge" style="background:var(--accent-lt);color:var(--accent-dk);">Masuk Track 1</span></td><td>Pool A: Senin-Rabu. Pool B: Kamis-Minggu. Broadcast D+3.</td></tr>
+        <tr><td><strong>Chat masuk, tidak ada di DB</strong></td><td>—</td><td><span class="badge" style="background:var(--accent-lt);color:var(--accent-dk);">Tag → Pool T1</span></td><td>COLD/WARM → pool akuisisi. HOT → sales handle langsung.</td></tr>
+        <tr><td><strong>Balas WA / tanya serius</strong></td><td>T1 atau T2</td><td><span class="badge" style="background:var(--accent-lt);color:var(--accent-dk);">Tag HOT → Sales</span></td><td>Stop broadcast sementara. Tidak closing 7 hari → kembali ke track.</td></tr>
+        <tr><td><strong>Beli / konfirmasi order</strong></td><td>T1, T2, atau Reaktif</td><td><span class="badge" style="background:var(--success-lt);color:var(--success);">→ Track 3 Fresh</span></td><td>Hapus dari list broadcast aktif. Catat bulan beli.</td></tr>
+        <tr><td><strong>Tidak respon setelah D+14 (T1)</strong></td><td>Track 1</td><td><span class="badge" style="background:var(--purple-lt);color:var(--purple);">→ Track 2</span></td><td>Pindahkan ke list Nurturing bulan ini.</td></tr>
+        <tr><td><strong>Tidak respon sampai D+90 (T2)</strong></td><td>Track 2</td><td><span class="badge" style="background:var(--danger-lt);color:var(--danger);">→ Track 4</span></td><td>Jeda 2 minggu sebelum mulai Win-back 1.</td></tr>
+        <tr><td><strong>Re-order terjadi</strong></td><td>T3 Fresh</td><td><span class="badge" style="background:var(--success-lt);color:var(--success);">Stay T3, reset</span></td><td>Update tanggal beli. Timer fresh ulang dari +1 bulan.</td></tr>
+        <tr><td><strong>Paid tidak re-order lebih 3 bulan</strong></td><td>T3 Fresh</td><td><span class="badge" style="background:var(--accent-lt);color:var(--accent-dk);">→ Paid Lama</span></td><td>Frekuensi turun ke 1x/2 bulan.</td></tr>
+        <tr><td><strong>Paid tidak re-order lebih 12 bulan</strong></td><td>T3 Lama</td><td><span class="badge" style="background:var(--danger-lt);color:var(--danger);">→ Track 4</span></td><td>Paid Dormant. Angle fresh start, bukan loyalty.</td></tr>
+        <tr><td><strong>Respon setelah Win-back / kembali chat</strong></td><td>T4 atau C/D</td><td><span class="badge" style="background:var(--success-lt);color:var(--success);">→ T1 atau T3</span></td><td>Cuma tanya → T1. Langsung beli → T3 Paid Fresh.</td></tr>
+        <tr><td><strong>Tidak respon 3x Win-back</strong></td><td>Track 4</td><td><span class="badge" style="background:var(--bg3);color:var(--text3);">ARSIP — Stop</span></td><td>Tidak ada broadcast lagi. Review setiap 6 bulan.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="dark-box">
+    <div class="dark-box-title">SOP Naming Konvensi — Wajib Konsisten</div>
+    <div style="margin-bottom:14px;">
+      <div style="color:var(--accent);font-weight:700;font-size:11px;margin-bottom:6px;">A. Format Nama Kampanye (Campaign)</div>
+      <code style="font-size:11px;background:rgba(255,255,255,.12);padding:10px 14px;border-radius:6px;display:block;color:var(--accent);font-weight:700;">[kategori]_[produk/topik]_[subtopik]_[segmen]_[MMYY]</code>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+      <div style="background:rgba(255,255,255,.07);border-radius:8px;padding:12px;">
+        <div style="color:rgba(255,255,255,.5);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Komponen</div>
+        <div style="font-size:11px;line-height:2.1;">
+          <span style="color:var(--accent);font-weight:700;">[kategori]</span> — edu | prod | mktg | util<br>
+          <span style="color:var(--accent);font-weight:700;">[produk/topik]</span> — parfum | jamurx | suarawalet | bangun | populasi | hama | sirip | panen<br>
+          <span style="color:var(--accent);font-weight:700;">[subtopik]</span> — fitur | carapakai | testimoni | promo | bundle | reminder<br>
+          <span style="color:var(--accent);font-weight:700;">[segmen]</span> — cold | warm | new | returning | loyal | churn | all<br>
+          <span style="color:var(--accent);font-weight:700;">[MMYY]</span> — 0426 = April 2026
+        </div>
+      </div>
+      <div style="background:rgba(255,255,255,.07);border-radius:8px;padding:12px;">
+        <div style="color:rgba(255,255,255,.5);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Contoh</div>
+        <code style="font-size:10px;background:rgba(0,0,0,.2);padding:8px 10px;border-radius:6px;display:block;line-height:2.2;color:#ccc;">edu_pencahayaan_cold_0426<br>prod_jamurx_testimoni_churn_0426<br>prod_parfum_fitur_warm_0426<br>mktg_jamurx_promo_all_0426<br>util_order_konfirmasi_new_0426<br>mktg_parfum_bundle_loyal_0426</code>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <div style="color:var(--accent);font-weight:700;font-size:11px;margin-bottom:6px;">B. Format List Recipient (Pool)</div>
+        <code style="font-size:10px;background:rgba(255,255,255,.08);padding:10px 12px;border-radius:6px;display:block;line-height:2.2;">Leads [DD-DD] [Bln] [YYYY]<br>Nurturing [Bln] [YYYY]<br>Paid [Bln] [YYYY] — Fresh<br>Paid [Bln] [YYYY] — Lama<br>Paid [Bln] [YYYY] — Dormant<br>Winback [Bln] [YYYY]<br>Arsip [Bln] [YYYY]</code>
+      </div>
+      <div>
+        <div style="color:var(--accent);font-weight:700;font-size:11px;margin-bottom:6px;">C. Aturan Penulisan</div>
+        <div style="font-size:11.5px;line-height:2.1;color:rgba(255,255,255,.7);">
+          1. Semua huruf <strong style="color:#fff;">lowercase</strong><br>
+          2. Pemisah: <strong style="color:#fff;">underscore ( _ )</strong><br>
+          3. Tidak ada karakter khusus /, -, (, )<br>
+          4. Tanggal <strong style="color:#fff;">selalu di posisi paling akhir</strong><br>
+          5. Subtopik boleh dilewati jika tidak relevan<br>
+          6. Nama campaign harus <strong style="color:#fff;">unik</strong> — cek duplikat
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RINGKASAN CEPAT -->
+<div id="ringkasan" class="panel">
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="background:var(--text);padding:10px 14px;font-family:var(--font-head);font-size:12px;font-weight:700;color:#fff;">Ringkasan Chat Masuk — Identifikasi & Tindakan</div>
+    <table class="tbl">
+      <thead><tr><th>Temuan di Cekat</th><th>Skenario</th><th>Perlakuan</th><th>Tone Greeting</th><th class="no">Pantangan</th></tr></thead>
+      <tbody>
+        <tr><td>Tidak ada di DB</td><td><span class="badge" style="background:var(--bg3);color:var(--text2);">Kontak Baru</span></td><td>Tag COLD/WARM/HOT → pool T1</td><td>Ramah, informatif</td><td class="no">Asumsi sudah tahu produk</td></tr>
+        <tr><td>Pipeline: Completed</td><td><span class="badge" style="background:var(--success-lt);color:var(--success);">A — Paid</span></td><td>Layanan prioritas, proses langsung, stay T3</td><td>Hangat, personal, sebut nama</td><td class="no">Perlakukan seperti leads baru</td></tr>
+        <tr><td>Pipeline aktif T1/T2</td><td><span class="badge" style="background:var(--purple-lt);color:var(--purple);">B — Leads Aktif</span></td><td>Lanjutkan, skip ke closing, tag HOT</td><td>Familiar, lanjut dari sebelumnya</td><td class="no">Kirim ulang broadcast yang sama</td></tr>
+        <tr><td>Closed Lost kurang 3 bulan</td><td><span class="badge" style="background:var(--accent-lt);color:var(--accent-dk);">C — Kembali Baru</span></td><td>Sales handle langsung, fresh angle</td><td>Hangat, tidak singgung masa lalu</td><td class="no">Tanya kenapa dulu batal</td></tr>
+        <tr><td>T4 / Arsip / lebih 3 bulan</td><td><span class="badge" style="background:var(--purple-lt);color:var(--purple);">D — Kembali Lama</span></td><td>Fresh start total, dengar dulu, update Cekat</td><td>Seperti pertama, tanpa beban</td><td class="no">Sebut riwayat win-back</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="background:var(--text);padding:10px 14px;font-family:var(--font-head);font-size:12px;font-weight:700;color:#fff;">Ringkasan Broadcast Proaktif — Track & Frekuensi</div>
+    <table class="tbl">
+      <thead><tr><th>Track</th><th>Segmen</th><th>Naming List</th><th>Frekuensi</th><th>Output</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge" style="background:var(--accent-lt);color:var(--accent-dk);">T1 Akuisisi</span></td><td>Leads baru pool semi-mingguan</td><td>Leads [DD-DD] [Bln] [YYYY]</td><td>3x / 14 hari (D+3, D+7, D+14)</td><td>Beli → T3 · Tidak → T2</td></tr>
+        <tr><td><span class="badge" style="background:var(--purple-lt);color:var(--purple);">T2 Nurturing</span></td><td>Leads 15–90 hari belum beli</td><td>Nurturing [Bln] [YYYY]</td><td>3x / 75 hari (D+30, D+45, D+60)</td><td>Beli → T3 · Tidak → T4</td></tr>
+        <tr><td><span class="badge" style="background:var(--success-lt);color:var(--success);">T3 Fresh</span></td><td>Paid 0–3 bulan</td><td>Paid [Bln] [YYYY] — Fresh</td><td>3x / 3 bulan (+1, +2, +3 bln)</td><td>Re-order → reset · Tidak → Lama</td></tr>
+        <tr><td><span class="badge" style="background:var(--accent-lt);color:var(--accent-dk);">T3 Lama</span></td><td>Paid 4–12 bulan</td><td>Paid [Bln] [YYYY] — Lama</td><td>1x / 2 bulan</td><td>Re-order → Fresh · &gt;12bln → T4</td></tr>
+        <tr><td><span class="badge" style="background:var(--danger-lt);color:var(--danger);">T4 Win-back</span></td><td>Unpaid lama & Paid Dormant</td><td>Winback [Bln] [YYYY]</td><td>3x / 3 bulan · lalu STOP</td><td>Respon → T1/T3 · Tidak → Arsip</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="dark-box">
+    <div class="dark-box-title">Prinsip Universal — Berlaku untuk Semua Skenario</div>
+    Broadcast berikutnya ditentukan oleh <strong style="color:var(--accent);">respons</strong>, bukan waktu. Chat masuk diidentifikasi dulu sebelum reply. Setiap kontak bergerak antar track berdasarkan apa yang mereka lakukan — balas, beli, diam, atau hilang. Tidak ada kontak yang dibroadcast selamanya tanpa arah.
+  </div>
+</div>
+
+</div>
+
+<script>
+function showTab(id){var btns=document.querySelectorAll('.tab');var target=null;btns.forEach(function(b){if(b.getAttribute('onclick')&&b.getAttribute('onclick').indexOf("'"+id+"'")>-1){target=b;}});show(id,target);window.scrollTo(0,0);}
+function show(id,btn){document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active');});document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('active');});document.getElementById(id).classList.add('active');if(btn)btn.classList.add('active');window.scrollTo(0,0);}
+function tog(hdr){hdr.parentElement.classList.toggle('open');}
+function togSc(hdr){hdr.parentElement.classList.toggle('open');}
+</script>
+</body>
+</html>

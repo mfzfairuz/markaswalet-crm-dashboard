@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markaswalet CRM</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:         #FDFAF4;
+  --bg2:        #FFFFFF;
+  --bg3:        #F5F0E8;
+  --border:     #E8E0CE;
+  --border2:    #D4C9B0;
+  --accent:     #E8A020;
+  --accent-dk:  #C4841A;
+  --accent-lt:  #FEF3DC;
+  --accent2:    #2D7DD2;
+  --text:       #1A1A1A;
+  --text2:      #5A5040;
+  --text3:      #9A8E7A;
+  --danger:     #D64C4C;
+  --success:    #2A9D6F;
+  --font-head:  'Syne', sans-serif;
+  --font-body:  'DM Sans', sans-serif;
+  --radius:     12px;
+  --radius-sm:  8px;
+  --shadow:     0 2px 12px rgba(0,0,0,0.06);
+  --shadow-lg:  0 8px 40px rgba(0,0,0,0.12);
+  --transition: all 0.18s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.6; min-height: 100vh; }
+
+.app { display: flex; min-height: 100vh; }
+
+/* SIDEBAR */
+.sidebar {
+  width: 236px; min-height: 100vh;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; bottom: 0;
+  z-index: 100;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+}
+
+.sidebar-logo { padding: 22px 18px 18px; border-bottom: 1px solid var(--border); }
+.logo-mark { display: flex; align-items: center; gap: 10px; }
+.logo-icon {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-dk));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 2px 8px rgba(232,160,32,0.3);
+}
+.logo-text { font-family: var(--font-head); font-weight: 800; font-size: 15px; color: var(--text); }
+.logo-sub { font-size: 10px; color: var(--text3); letter-spacing: 1.2px; text-transform: uppercase; margin-top: 1px; }
+
+.sidebar-nav { flex: 1; padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; }
+.nav-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3); padding: 10px 8px 5px; font-weight: 600; }
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 10px; border-radius: var(--radius-sm);
+  cursor: pointer; transition: var(--transition);
+  color: var(--text2); font-size: 13.5px; font-weight: 500;
+  border: 1px solid transparent; text-decoration: none;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active { background: var(--accent-lt); color: var(--accent-dk); border-color: rgba(232,160,32,0.25); font-weight: 600; }
+.nav-icon { font-size: 15px; width: 20px; text-align: center; }
+
+.sidebar-footer { padding: 14px 12px; border-top: 1px solid var(--border); }
+.status-dot { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text3); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+/* MAIN */
+.main { margin-left: 236px; flex: 1; display: flex; flex-direction: column; }
+
+.topbar {
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 0 28px; height: 58px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.topbar-title { font-family: var(--font-head); font-weight: 700; font-size: 16px; color: var(--text); }
+
+/* PAGES */
+.page { display: none; }
+.page.active { display: block; }
+
+/* STATS */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+  position: relative; overflow: hidden;
+  transition: var(--transition); box-shadow: var(--shadow);
+}
+.stat-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+.stat-card::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-dk));
+  opacity: 0; transition: var(--transition);
+}
+.stat-card:hover::after { opacity: 1; }
+.stat-icon { font-size: 24px; margin-bottom: 10px; }
+.stat-value { font-family: var(--font-head); font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; margin-bottom: 4px; }
+.stat-label { font-size: 12px; color: var(--text3); }
+.stat-change { font-size: 11.5px; margin-top: 8px; color: var(--text3); }
+.stat-change.up { color: var(--success); }
+
+/* GRIDS */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+.grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 18px; }
+
+/* CARD */
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.card-header { padding: 13px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg2); }
+.card-title { font-family: var(--font-head); font-weight: 700; font-size: 13.5px; color: var(--text); }
+.card-body { padding: 18px; }
+
+/* TABLE */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); background: var(--bg3); white-space: nowrap; }
+td { padding: 11px 16px; font-size: 13px; color: var(--text2); border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg3); color: var(--text); }
+.td-name { font-weight: 600; color: var(--text); }
+
+/* BADGES */
+.badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.badge-loyal      { background: #D4F5E7; color: #1A7A50; }
+.badge-returning  { background: #DEEEFF; color: #1A5A9A; }
+.badge-new        { background: var(--accent-lt); color: var(--accent-dk); }
+.badge-churn      { background: #FFE8E8; color: #A03030; }
+.badge-completed  { background: #D4F5E7; color: #1A7A50; }
+.badge-cancelled  { background: #FFE8E8; color: #A03030; }
+.badge-processing { background: var(--accent-lt); color: var(--accent-dk); }
+.badge-rts        { background: var(--bg3); color: var(--text3); border: 1px solid var(--border); }
+
+/* SEARCH */
+.search-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.search-input-wrap { position: relative; flex: 1; }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 14px; }
+.search-input { width: 100%; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px 9px 36px; color: var(--text); font-family: var(--font-body); font-size: 13.5px; outline: none; transition: var(--transition); }
+.search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232,160,32,0.12); }
+.search-input::placeholder { color: var(--text3); }
+.filter-select { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; color: var(--text); font-family: var(--font-body); font-size: 13px; outline: none; cursor: pointer; min-width: 140px; }
+.filter-select:focus { border-color: var(--accent); }
+
+/* CHART */
+.chart-area { height: 190px; display: flex; align-items: flex-end; gap: 5px; padding: 0 2px; }
+.bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; height: 100%; justify-content: flex-end; }
+.bar { width: 100%; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, var(--accent), rgba(232,160,32,0.25)); transition: all 0.5s cubic-bezier(0.34,1.56,0.64,1); cursor: pointer; min-height: 4px; }
+.bar:hover { background: linear-gradient(180deg, var(--accent-dk), rgba(196,132,26,0.3)); }
+.bar-label { font-size: 10px; color: var(--text3); text-align: center; white-space: nowrap; }
+
+/* DONUT */
+.donut-wrap { display: flex; align-items: center; gap: 20px; }
+.donut-legend { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.legend-item { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; }
+.legend-dot-label { display: flex; align-items: center; gap: 8px; }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.legend-val { font-weight: 700; color: var(--text); font-size: 13px; }
+
+/* RANK */
+.product-rank { display: flex; flex-direction: column; gap: 12px; }
+.product-item { display: flex; align-items: center; gap: 12px; }
+.rank-num { font-family: var(--font-head); font-weight: 800; font-size: 16px; color: var(--border2); width: 24px; text-align: right; flex-shrink: 0; }
+.rank-bar-wrap { flex: 1; }
+.rank-name { font-size: 12.5px; color: var(--text); font-weight: 500; margin-bottom: 4px; }
+.rank-bar-bg { height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.rank-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent-dk), var(--accent)); transition: width 0.8s ease; }
+.rank-qty { font-size: 12px; font-weight: 600; color: var(--text2); white-space: nowrap; }
+
+/* PAGINATION */
+.pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text3); background: var(--bg3); }
+.page-btns { display: flex; gap: 5px; }
+.page-btn { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: var(--transition); }
+.page-btn:hover, .page-btn.active { border-color: var(--accent); color: var(--accent-dk); background: var(--accent-lt); }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(26,16,0,0.45); backdrop-filter: blur(3px); z-index: 200; display: none; align-items: center; justify-content: center; padding: 24px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 780px; max-height: 86vh; overflow-y: auto; box-shadow: var(--shadow-lg); animation: modalIn 0.2s ease; }
+@keyframes modalIn { from{opacity:0;transform:translateY(14px) scale(0.98)} to{opacity:1;transform:translateY(0) scale(1)} }
+.modal-header { padding: 22px 24px 0; display: flex; align-items: flex-start; justify-content: space-between; }
+.modal-close { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); width: 30px; height: 30px; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: var(--transition); flex-shrink: 0; }
+.modal-close:hover { background: var(--border); color: var(--text); }
+.customer-name-big { font-family: var(--font-head); font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 3px; }
+.customer-id-small { font-size: 12px; color: var(--text3); font-family: monospace; }
+.modal-body { padding: 18px 24px 24px; }
+.customer-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+.meta-item { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 13px; }
+.meta-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; font-weight: 600; }
+.meta-value { font-weight: 700; font-size: 14px; color: var(--text); }
+
+/* IMPORT */
+.import-area { border: 2px dashed var(--border2); border-radius: var(--radius); padding: 36px; text-align: center; cursor: pointer; transition: var(--transition); background: var(--bg3); }
+.import-area:hover, .import-area.dragover { border-color: var(--accent); background: var(--accent-lt); }
+.import-icon { font-size: 36px; margin-bottom: 10px; }
+.import-title { font-family: var(--font-head); font-size: 15px; font-weight: 700; margin-bottom: 5px; }
+.import-sub { font-size: 13px; color: var(--text3); }
+
+/* LOADING */
+.loading { display: flex; align-items: center; justify-content: center; padding: 36px; color: var(--text3); font-size: 13px; gap: 10px; }
+.spinner { width: 17px; height: 17px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+.empty { text-align: center; padding: 44px 20px; color: var(--text3); }
+.empty-icon { font-size: 32px; margin-bottom: 10px; }
+
+/* TOAST */
+.toast-container { position: fixed; bottom: 22px; right: 22px; z-index: 999; display: flex; flex-direction: column; gap: 7px; }
+.toast { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 16px; font-size: 13px; color: var(--text); box-shadow: var(--shadow-lg); animation: toastIn 0.25s ease; max-width: 300px; }
+.toast.success { border-left: 3px solid var(--success); }
+.toast.error { border-left: 3px solid var(--danger); }
+@keyframes toastIn { from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:translateX(0)} }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg3); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">🪺</div>
+        <div>
+          <div class="logo-text">Markaswalet</div>
+          <div class="logo-sub">CRM Dashboard</div>
+        </div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-label">Menu</div>
+      <a class="nav-item active" onclick="showPage('dashboard')" href="#"><span class="nav-icon">📊</span> Dashboard</a>
+      <a class="nav-item" onclick="showPage('customers')" href="#"><span class="nav-icon">👥</span> Customers</a>
+      <a class="nav-item" onclick="showPage('orders')" href="#"><span class="nav-icon">📦</span> Orders</a>
+      <div class="nav-label">Data</div>
+      <a class="nav-item" onclick="showPage('leads')" href="#"><span class="nav-icon">🎯</span> Leads</a>
+      <a class="nav-item" onclick="showPage('import')" href="#"><span class="nav-icon">⬆️</span> Import Data</a>
+      <div class="nav-label">Referensi</div>
+      <a class="nav-item" onclick="showPage('panduan')" href="#"><span class="nav-icon">📖</span> Panduan CS</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="status-dot">
+        <div class="dot" id="statusDot"></div>
+        <span id="statusText">Connecting...</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="topbar">
+        <div class="topbar-title">Dashboard</div>
+        <span style="font-size:12px;color:var(--text3)" id="lastUpdated"></span>
+      </div>
+      <div style="padding:24px">
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-header">
+            <div class="card-title">Revenue Bulanan</div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="display:flex;gap:8px;font-size:11px;color:var(--text3)">
+                <span><span style="display:inline-block;width:9px;height:9px;background:#E8A020;border-radius:2px;margin-right:3px"></span>Akuisisi</span>
+                <span><span style="display:inline-block;width:9px;height:9px;background:#2D7DD2;border-radius:2px;margin-right:3px"></span>Repeat</span>
+              </div>
+              <select id="chartPeriod" onchange="renderChart()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;outline:none">
+                <option value="6">6 Bln</option>
+                <option value="12">12 Bln</option>
+                <option value="24" selected>24 Bln</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:12px;font-size:11px;color:var(--text3)">
+              <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;margin-right:4px"></span>Akuisisi Baru</span>
+              <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent2);border-radius:2px;margin-right:4px"></span>Repeat Order</span>
+            </div>
+          </div>
+            <div class="card-body"><div class="chart-area" id="revenueChart"><div class="loading"><div class="spinner"></div></div></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Segmen Customer</div></div>
+            <div class="card-body"><div class="donut-wrap" id="segmentChart"><div class="loading"><div class="spinner"></div></div></div></div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Top 10 Produk</div></div>
+            <div class="card-body"><div class="product-rank" id="topProducts"><div class="loading"><div class="spinner"></div></div></div></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Top Provinsi</div></div>
+            <div class="card-body"><div class="product-rank" id="topProvinsi"><div class="loading"><div class="spinner"></div></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CUSTOMERS -->
+    <div class="page" id="page-customers">
+      <div class="topbar">
+        <div class="topbar-title">Customers</div>
+        <span style="font-size:12px;color:var(--text3)" id="custTotal"></span>
+      </div>
+      <div style="padding:24px">
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input class="search-input" id="custSearch" placeholder="Cari nama atau nomor HP..." oninput="debounceSearch()">
+          </div>
+          <select class="filter-select" id="segmentFilter" onchange="loadCustomers()">
+            <option value="">Semua Segmen</option>
+            <option value="Loyal">Loyal</option>
+            <option value="Returning">Returning</option>
+            <option value="New">New</option>
+            <option value="Churn">Churn</option>
+          </select>
+          <select class="filter-select" id="platformFilter" onchange="loadCustomers()">
+            <option value="">Semua Platform</option>
+            <option value="orderonline">OrderOnline</option>
+            <option value="mengantar">Mengantar</option>
+          </select>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+              <th>Customer</th>
+              <th>Lokasi</th>
+              <th>Segmen</th>
+              <th onclick="sortCust('total_orders')" style="cursor:pointer" title="Klik untuk sort">Total Orders <span id="sort_total_orders"></span></th>
+              <th onclick="sortCust('total_revenue')" style="cursor:pointer" title="Klik untuk sort">Total Revenue <span id="sort_total_revenue"></span></th>
+              <th onclick="sortCust('last_order_date')" style="cursor:pointer" title="Klik untuk sort">Last Order <span id="sort_last_order_date"></span></th>
+              <th>Platform</th>
+            </tr></thead>
+              <tbody id="custTable"><tr><td colspan="7"><div class="loading"><div class="spinner"></div> Memuat data...</div></td></tr></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="custPagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div class="page" id="page-orders">
+      <div class="topbar"><div class="topbar-title">Orders</div></div>
+      <div style="padding:24px">
+        <div class="search-bar" style="flex-wrap:wrap;gap:8px">
+          <select class="filter-select" id="orderStatus" onchange="loadOrders()">
+            <option value="">Semua Status</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="processing_unpaid">Processing Unpaid</option>
+            <option value="rts">RTS</option>
+          </select>
+          <select class="filter-select" id="orderPlatform" onchange="loadOrders()">
+            <option value="">Semua Platform</option>
+            <option value="orderonline">OrderOnline</option>
+            <option value="mengantar">Mengantar</option>
+          </select>
+          <select class="filter-select" id="orderPayment" onchange="loadOrders()">
+            <option value="">Semua Payment</option>
+            <option value="COD">COD</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="E-wallet">E-wallet</option>
+          </select>
+          <select class="filter-select" id="orderCourier" onchange="loadOrders()">
+            <option value="">Semua Kurir</option>
+            <option value="JNE">JNE</option>
+            <option value="J&T">J&T</option>
+            <option value="Ninja">Ninja</option>
+            <option value="SAP">SAP</option>
+            <option value="ID Express">ID Express</option>
+            <option value="Lion Parcel">Lion Parcel</option>
+            <option value="SiCepat">SiCepat</option>
+          </select>
+          <select class="filter-select" id="orderSort" onchange="loadOrders()">
+            <option value="order_date|desc">Tanggal Terbaru</option>
+            <option value="order_date|asc">Tanggal Terlama</option>
+            <option value="net_revenue|desc">Revenue Terbesar</option>
+            <option value="net_revenue|asc">Revenue Terkecil</option>
+            <option value="total_qty|desc">Qty Terbesar</option>
+          </select>
+          <input type="month" id="orderMonth" class="filter-select" onchange="loadOrders()" style="min-width:140px">
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Order ID</th><th>Tanggal</th><th>Customer</th><th>Status</th><th>Payment</th><th>Net Revenue</th><th>Kurir</th><th>Qty</th></tr></thead>
+              <tbody id="ordersTable"><tr><td colspan="8"><div class="loading"><div class="spinner"></div> Memuat data...</div></td></tr></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="ordersPagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORT -->
+    <div class="page" id="page-import">
+      <div class="topbar"><div class="topbar-title">Import Data Bulanan</div></div>
+      <div style="padding:24px">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><div class="card-title">📋 OrderOnline</div></div>
+            <div class="card-body">
+              <div class="import-area" id="ooDropzone"
+                ondragover="handleDrag(event,'oo')" ondragleave="handleDragLeave(event,'oo')"
+                ondrop="handleDrop(event,'orderonline')" onclick="document.getElementById('ooFile').click()">
+                <div class="import-icon">📄</div>
+                <div class="import-title">Upload File OrderOnline</div>
+                <div class="import-sub">Drag & drop atau klik<br><small style="color:var(--text3)">.xlsx / .xls / .csv</small></div>
+              </div>
+              <input type="file" id="ooFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileSelect(this,'orderonline')">
+              <div id="ooStatus" style="margin-top:10px;font-size:13px"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">🚚 Mengantar</div></div>
+            <div class="card-body">
+              <div class="import-area" id="menDropzone"
+                ondragover="handleDrag(event,'men')" ondragleave="handleDragLeave(event,'men')"
+                ondrop="handleDrop(event,'mengantar')" onclick="document.getElementById('menFile').click()">
+                <div class="import-icon">📄</div>
+                <div class="import-title">Upload File Mengantar</div>
+                <div class="import-sub">Drag & drop atau klik<br><small style="color:var(--text3)">.xlsx / .xls / .csv</small></div>
+              </div>
+              <input type="file" id="menFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileSelect(this,'mengantar')">
+              <div id="menStatus" style="margin-top:10px;font-size:13px"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Panduan Import</div></div>
+          <div class="card-body" style="color:var(--text2);font-size:13.5px;line-height:2.2">
+            <p>✅ Upload file export bulanan dari OrderOnline atau Mengantar</p>
+            <p>✅ Sistem otomatis melakukan preprocessing & standardisasi</p>
+            <p>✅ Data baru langsung masuk ke database</p>
+            <p>⚠️ Pastikan file adalah export asli dari platform — jangan diedit manual</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- LEADS -->
+    <div class="page" id="page-leads">
+      <div class="topbar">
+        <div class="topbar-title">Leads</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:12px;color:var(--text3)" id="leadsTotal"></span>
+          <label class="btn btn-secondary" style="cursor:pointer;font-size:12px;padding:7px 14px">
+            📥 Import Cekat
+            <input type="file" id="leadsImportFile" accept=".xlsx" style="display:none" onchange="importLeads(this)">
+          </label>
+        </div>
+      </div>
+      <div style="padding:22px">
+        <!-- Stats bar -->
+        <div id="leadsPipelineStats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
+        <!-- Filters -->
+        <div class="search-bar">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input class="search-input" id="leadsSearch" placeholder="Cari nama atau nomor HP..." oninput="debounceLeads()">
+          </div>
+          <select class="filter-select" id="leadsPipelineFilter" onchange="loadLeads()">
+            <option value="">Semua Pipeline</option>
+            <option value="Asking Product">Asking Product</option>
+            <option value="Consultation">Consultation</option>
+            <option value="Interested">Interested</option>
+            <option value="Negotiation">Negotiation</option>
+            <option value="Order Created">Order Created</option>
+            <option value="Waiting Payment">Waiting Payment</option>
+            <option value="Completed">Completed</option>
+            <option value="Tidak Jadi Beli">Tidak Jadi Beli</option>
+          </select>
+          <select class="filter-select" id="leadsConvertedFilter" onchange="loadLeads()">
+            <option value="">Semua</option>
+            <option value="true">Sudah Closing ✅</option>
+            <option value="false">Belum Closing</option>
+          </select>
+          <select class="filter-select" id="leadsLabelFilter" onchange="loadLeads()">
+            <option value="">Semua Label</option>
+            <optgroup label="🌡 Temperatur">
+              <option value="COLD">❄️ COLD</option>
+              <option value="WARM">🌤 WARM</option>
+              <option value="HOT">🔥 HOT</option>
+            </optgroup>
+            <optgroup label="📡 Track Broadcast">
+              <option value="T1-Akuisisi">T1 — Akuisisi</option>
+              <option value="T2-Nurturing">T2 — Nurturing</option>
+              <option value="T3-Fresh">T3 — Fresh</option>
+              <option value="T3-Lama">T3 — Lama</option>
+              <option value="T4-Winback">T4 — Win-back</option>
+              <option value="Arsip">🗂 Arsip</option>
+            </optgroup>
+            <optgroup label="📦 Produk">
+              <option value="Parfum">Parfum NH3X</option>
+              <option value="Anti Jamur">Anti Jamur</option>
+              <option value="Suara Walet">Suara Walet</option>
+              <option value="Seminar">Seminar</option>
+              <option value="Denah RBW">Denah RBW</option>
+              <option value="Konsultasi RBW">Konsultasi RBW</option>
+            </optgroup>
+            <optgroup label="📣 Sumber">
+              <option value="Facebook Ads">Facebook Ads</option>
+              <option value="Organik Web">Organik Web</option>
+              <option value="Marketplace">Marketplace</option>
+              <option value="Referral">Referral</option>
+              <option value="WA Organik">WA Organik</option>
+            </optgroup>
+            <optgroup label="📊 Status">
+              <option value="Closing">Closing</option>
+              <option value="Belum Closing">Belum Closing</option>
+              <option value="Tidak Balas">Tidak Balas</option>
+              <option value="Potensial">Potensial</option>
+              <option value="Follow Up Later">Follow Up Later</option>
+              <option value="Akuisisi Baru">Akuisisi Baru</option>
+              <option value="Blacklist">Blacklist</option>
+              <option value="Tanya Harga">Tanya Harga</option>
+            </optgroup>
+            <optgroup label="📚 Edukasi">
+              <option value="Edu: Suara Persawahan">Edu: Suara Persawahan</option>
+              <option value="Edu: Sirip Berjamur">Edu: Sirip Berjamur</option>
+              <option value="Edu: Panen">Edu: Panen</option>
+              <option value="Edu: Pencahayaan">Edu: Pencahayaan</option>
+              <option value="Edu: Kelembaban">Edu: Kelembaban</option>
+              <option value="Edu: Penggunaan Parfum">Edu: Penggunaan Parfum</option>
+              <option value="Edu: Suara Ranym">Edu: Suara Ranym</option>
+              <option value="Edu: Suara Tarik">Edu: Suara Tarik</option>
+            </optgroup>
+            <optgroup label="👤 CS">
+              <option value="CS: Fara">CS: Fara</option>
+              <option value="CS: Nindi">CS: Nindi</option>
+              <option value="CS: Wahyu">CS: Wahyu</option>
+            </optgroup>
+          </select>
+          <select class="filter-select" id="leadsSortSelect" onchange="loadLeads()">
+            <option value="last_message_at|desc">Last Message ↓</option>
+            <option value="created_at|desc">Terbaru</option>
+            <option value="created_at|asc">Terlama</option>
+            <option value="name|asc">Nama A-Z</option>
+          </select>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Nama</th><th>HP</th><th>Pipeline</th><th>Label</th>
+                <th>Kota</th><th>RBW</th><th>Closing</th><th>Last Message</th><th>Aksi</th>
+              </tr></thead>
+              <tbody id="leadsTable"><tr><td colspan="9"><div class="loading"><div class="spinner"></div> Memuat data...</div></td></tr></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="leadsPagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL EDIT LEAD -->
+    <div class="modal-overlay" id="leadModal" onclick="closeLeadModal(event)">
+      <div class="modal" style="max-width:560px">
+        <div class="modal-header">
+          <div style="flex:1;margin-right:10px">
+            <input id="leadModalName" type="text" style="font-family:var(--font-head);font-size:20px;font-weight:800;color:var(--text);border:none;border-bottom:2px solid var(--border);background:transparent;width:100%;outline:none;padding:2px 0;margin-bottom:4px" placeholder="Nama lead...">
+            <div class="customer-id-small" id="leadModalPhone">-</div>
+          </div>
+          <button class="modal-close" onclick="closeLeadModalDirect()">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="leadModalId">
+          <div class="customer-meta" style="grid-template-columns:1fr 1fr">
+            <div class="meta-item">
+              <div class="meta-label">Pipeline Status</div>
+              <select id="editPipeline" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:var(--font-body);font-size:13px;color:var(--text);outline:none;margin-top:4px">
+                <option value="Asking Product">Asking Product</option>
+                <option value="Consultation">Consultation</option>
+                <option value="Interested">Interested</option>
+                <option value="Negotiation">Negotiation</option>
+                <option value="Order Created">Order Created</option>
+                <option value="Waiting Payment">Waiting Payment</option>
+                <option value="Completed">Completed</option>
+                <option value="Tidak Jadi Beli">Tidak Jadi Beli</option>
+              </select>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Kota</div>
+              <input id="editKota" type="text" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:var(--font-body);font-size:13px;color:var(--text);outline:none;margin-top:4px">
+            </div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div class="meta-label" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:8px">Label Terstruktur</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div class="meta-item">
+                <div class="meta-label">Temperatur</div>
+                <select id="editTemp" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:var(--font-body);font-size:12px;color:var(--text);outline:none;margin-top:4px">
+                  <option value="">-</option>
+                  <option value="COLD">❄️ COLD</option>
+                  <option value="WARM">🌤 WARM</option>
+                  <option value="HOT">🔥 HOT</option>
+                </select>
+              </div>
+              <div class="meta-item">
+                <div class="meta-label">Track Broadcast</div>
+                <select id="editTrack" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:var(--font-body);font-size:12px;color:var(--text);outline:none;margin-top:4px">
+                  <option value="">-</option>
+                  <option value="T1-Akuisisi">T1 — Akuisisi</option>
+                  <option value="T2-Nurturing">T2 — Nurturing</option>
+                  <option value="T3-Fresh">T3 — Fresh (0-3 bln)</option>
+                  <option value="T3-Lama">T3 — Lama (4-12 bln)</option>
+                  <option value="T4-Winback">T4 — Win-back</option>
+                  <option value="Arsip">🗂 Arsip</option>
+                </select>
+              </div>
+              <div class="meta-item">
+                <div class="meta-label">Produk Diminati</div>
+                <select id="editProduk" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:var(--font-body);font-size:12px;color:var(--text);outline:none;margin-top:4px">
+                  <option value="">-</option>
+                  <option value="Parfum">Parfum NH3X</option>
+                  <option value="Anti Jamur">Anti Jamur</option>
+                  <option value="Suara Walet">Suara Walet</option>
+                  <option value="Seminar">Seminar</option>
+                  <option value="Denah RBW">Denah RBW</option>
+                  <option value="Konsultasi RBW">Konsultasi RBW</option>
+                </select>
+              </div>
+              <div class="meta-item">
+                <div class="meta-label">Sumber Lead</div>
+                <select id="editSumber" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-family:var(--font-body);font-size:12px;color:var(--text);outline:none;margin-top:4px">
+                  <option value="">-</option>
+                  <option value="Facebook Ads">Facebook Ads</option>
+                  <option value="Organik Web">Organik Web</option>
+                  <option value="Marketplace">Marketplace</option>
+                  <option value="Referral">Referral</option>
+                  <option value="WA Organik">WA Organik</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="meta-item" style="margin-bottom:16px">
+            <div class="meta-label">Note CS</div>
+            <textarea id="editNote" rows="3" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px;font-family:var(--font-body);font-size:13px;color:var(--text);outline:none;resize:vertical;margin-top:4px"></textarea>
+          </div>
+          <!-- Info RBW -->
+          <div style="font-family:var(--font-head);font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Info Rumah Burung Walet</div>
+          <div class="customer-meta" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+            <div class="meta-item"><div class="meta-label">Status RBW</div><div class="meta-value" id="infoRBW">-</div></div>
+            <div class="meta-item"><div class="meta-label">Usia RBW</div><div class="meta-value" id="infoUsia">-</div></div>
+            <div class="meta-item"><div class="meta-label">Ukuran</div><div class="meta-value" id="infoUkuran">-</div></div>
+            <div class="meta-item"><div class="meta-label">Lantai</div><div class="meta-value" id="infoLantai">-</div></div>
+            <div class="meta-item"><div class="meta-label">Sarang</div><div class="meta-value" id="infoSarang">-</div></div>
+            <div class="meta-item"><div class="meta-label">Panen/3bln</div><div class="meta-value" id="infoPanen">-</div></div>
+          </div>
+          <!-- First message -->
+          <div class="meta-item" style="margin-bottom:16px">
+            <div class="meta-label">Pesan Pertama</div>
+            <div id="infoFirstMsg" style="font-size:12px;color:var(--text2);font-style:italic;margin-top:4px;line-height:1.6"></div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button onclick="closeLeadModalDirect()" style="padding:8px 18px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text2);cursor:pointer;font-family:var(--font-body);font-size:13px;">Batal</button>
+            <button onclick="saveLead()" style="padding:8px 18px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-family:var(--font-body);font-size:13px;font-weight:700;">Simpan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-panduan">
+      <div class="topbar"><div class="topbar-title">Panduan CS & SOP CRM</div></div>
+      <div style="padding:0">
+        <iframe src="/panduan_embed.html" style="width:100%;height:calc(100vh - 56px);border:none;display:block"></iframe>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="customerModal" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="customer-name-big" id="modalName">-</div>
+        <div class="customer-id-small" id="modalId">-</div>
+      </div>
+      <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="customer-meta" id="modalMeta"></div>
+      <div style="font-family:var(--font-head);font-size:11px;font-weight:700;margin-bottom:10px;color:var(--text3);letter-spacing:1.2px;text-transform:uppercase">Riwayat Order</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Order ID</th><th>Tanggal</th><th>Status</th><th>Produk</th><th>Qty</th><th>Net Revenue</th><th>Kurir</th></tr></thead>
+          <tbody id="modalOrders"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+const API = 'https://markaswalet-api-lxxk3b3zua-et.a.run.app';
+let custPage = 1, orderPage = 1, searchTimer = null;
+let custSort = 'last_order_date', custDir = 'desc';
+
+function sortCust(col) {
+  if (custSort === col) { custDir = custDir === 'desc' ? 'asc' : 'desc'; }
+  else { custSort = col; custDir = 'desc'; }
+  // Update sort indicator
+  ['total_orders','total_revenue','last_order_date'].forEach(c => {
+    const el = document.getElementById('sort_' + c);
+    if (el) el.textContent = c === custSort ? (custDir === 'desc' ? '↓' : '↑') : '';
+  });
+  custPage = 1;
+  loadCustomers();
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick')?.includes(name)) n.classList.add('active');
+  });
+  if (name === 'customers' && !document.getElementById('custTable').dataset.loaded) loadCustomers();
+  if (name === 'orders' && !document.getElementById('ordersTable').dataset.loaded) loadOrders();
+  if (name === 'leads') { loadLeads(); loadLeadsPipelineStats(); }
+}
+
+const fmt = n => n ? 'Rp ' + Math.round(n).toLocaleString('id-ID') : 'Rp 0';
+const fmtDate = d => d ? new Date(d).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}) : '-';
+
+function toast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.getElementById('toastContainer').appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+const segBadge = s => {
+  const m = {Loyal:'loyal',Returning:'returning',New:'new',Churn:'churn'};
+  return `<span class="badge badge-${m[s]||'churn'}">${s||'Unknown'}</span>`;
+};
+
+const statusBadge = s => {
+  const m = {completed:'completed',cancelled:'cancelled',processing_unpaid:'processing',rts:'rts'};
+  const l = {completed:'Completed',cancelled:'Cancelled',processing_unpaid:'Unpaid',rts:'RTS'};
+  return `<span class="badge badge-${m[s]||'rts'}">${l[s]||s}</span>`;
+};
+
+async function checkHealth() {
+  try {
+    const d = await fetch(API+'/health').then(r=>r.json());
+    document.getElementById('statusDot').style.background = 'var(--success)';
+    document.getElementById('statusText').textContent = `DB OK · ${d.customers?.toLocaleString()} customers`;
+  } catch {
+    document.getElementById('statusDot').style.background = 'var(--danger)';
+    document.getElementById('statusText').textContent = 'DB Error';
+  }
+}
+
+async function loadDashboard() {
+  try {
+    const [summary] = await Promise.all([
+      fetch(API+'/analytics/summary').then(r=>r.json())
+    ]);
+    const revenue = {data: summary.monthly_revenue};
+    const o = summary.orders, c = summary.customers;
+
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-value">${(o.total_revenue/1e9).toFixed(2)}M</div>
+        <div class="stat-label">Total Net Revenue</div>
+        <div class="stat-change">Rp ${Math.round(o.total_revenue).toLocaleString('id-ID')}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-value">${o.total?.toLocaleString()}</div>
+        <div class="stat-label">Completed Orders</div>
+        <div class="stat-change">AOV ${fmt(o.avg_order_value)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-value">${c.total?.toLocaleString()}</div>
+        <div class="stat-label">Total Customers</div>
+        <div class="stat-change up">▲ ${c.loyal} Loyal · ${c.returning} Returning</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🚚</div>
+        <div class="stat-value">${(o.total_subsidi_ongkir/1e6).toFixed(0)}jt</div>
+        <div class="stat-label">Subsidi Ongkir</div>
+        <div class="stat-change">dari ${fmt(o.total_shipping)} total ongkir</div>
+      </div>`;
+
+    window._chartMonths = revenue.data||[]; const months = window._chartMonths, maxRev = Math.max(...months.map(m=>m.revenue||0));
+    document.getElementById('revenueChart').innerHTML = months.slice(-12).map(m=>{
+      const pct = maxRev > 0 ? (m.revenue/maxRev)*170 : 4;
+      const newH = maxRev > 0 ? ((m.revenue_new||0)/maxRev)*170 : 2;
+      const repH = Math.max(0, pct - newH);
+      return `<div class="bar-wrap">
+        <div style="display:flex;flex-direction:column;width:100%;height:${Math.max(4,pct)}px;border-radius:4px 4px 0 0;overflow:hidden;cursor:pointer"
+          title="${m.month}: ${fmt(m.revenue)} (Baru: ${fmt(m.revenue_new)}, Repeat: ${fmt(m.revenue_repeat)})">
+          <div style="flex:${newH};background:linear-gradient(180deg,#E8A020,rgba(232,160,32,0.5));min-height:${newH>0?2:0}px"></div>
+          <div style="flex:${repH};background:linear-gradient(180deg,#2D7DD2,rgba(45,125,210,0.4));min-height:${repH>0?2:0}px"></div>
+        </div>
+        <div class="bar-label">${m.month?.slice(5)}</div>
+      </div>`;
+    }).join('');
+
+    const total = c.loyal+c.returning+c.new+c.churn;
+    const segs = [
+      {label:'Loyal',    val:c.loyal,     color:'#2A9D6F', pct:Math.round(c.loyal/total*100)},
+      {label:'Returning',val:c.returning, color:'#2D7DD2', pct:Math.round(c.returning/total*100)},
+      {label:'New',      val:c.new,       color:'#E8A020', pct:Math.round(c.new/total*100)},
+      {label:'Churn',    val:c.churn,     color:'#D64C4C', pct:Math.round(c.churn/total*100)},
+    ];
+    let offset=0;
+    const r=54, circ=2*Math.PI*r;
+    const arcs = segs.map(s=>{
+      const dash=(s.pct/100)*circ;
+      const arc=`<circle cx="64" cy="64" r="${r}" fill="none" stroke="${s.color}" stroke-width="16" stroke-dasharray="${dash} ${circ-dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 64 64)" stroke-linecap="round"/>`;
+      offset+=dash; return arc;
+    }).join('');
+
+    document.getElementById('segmentChart').innerHTML = `
+      <svg width="128" height="128" viewBox="0 0 128 128" style="flex-shrink:0">
+        <circle cx="64" cy="64" r="54" fill="none" stroke="var(--bg3)" stroke-width="16"/>
+        ${arcs}
+        <text x="64" y="60" text-anchor="middle" fill="var(--text)" font-size="18" font-weight="bold" font-family="Syne">${c.total?.toLocaleString()}</text>
+        <text x="64" y="76" text-anchor="middle" fill="var(--text3)" font-size="9">customers</text>
+      </svg>
+      <div class="donut-legend">
+        ${segs.map(s=>`
+          <div class="legend-item">
+            <div class="legend-dot-label"><div class="legend-dot" style="background:${s.color}"></div><span style="color:var(--text2)">${s.label}</span></div>
+            <span class="legend-val">${s.val?.toLocaleString()} <span style="color:var(--text3);font-weight:400">(${s.pct}%)</span></span>
+          </div>`).join('')}
+      </div>`;
+
+    const prods=summary.top_products||[], maxQ=Math.max(...prods.map(p=>p.total_qty));
+    document.getElementById('topProducts').innerHTML = prods.map((p,i)=>`
+      <div class="product-item">
+        <div class="rank-num">${i+1}</div>
+        <div class="rank-bar-wrap">
+          <div class="rank-name">${p.product_name||'-'}</div>
+          <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${Math.round(p.total_qty/maxQ*100)}%"></div></div>
+        </div>
+        <div class="rank-qty">${Math.round(p.total_qty).toLocaleString()} unit</div>
+      </div>`).join('');
+
+    const provs=summary.top_provinsi||[], maxP=Math.max(...provs.map(p=>p.customers));
+    document.getElementById('topProvinsi').innerHTML = provs.map((p,i)=>`
+      <div class="product-item">
+        <div class="rank-num">${i+1}</div>
+        <div class="rank-bar-wrap">
+          <div class="rank-name">${p.province||'-'}</div>
+          <div class="rank-bar-bg"><div class="rank-bar-fill" style="width:${Math.round(p.customers/maxP*100)}%"></div></div>
+        </div>
+        <div class="rank-qty">${p.customers?.toLocaleString()}</div>
+      </div>`).join('');
+
+    document.getElementById('lastUpdated').textContent = 'Update: '+new Date().toLocaleTimeString('id-ID');
+  } catch(e) { toast('Gagal load dashboard','error'); }
+}
+
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(()=>{custPage=1;loadCustomers();},400);
+}
+
+async function loadCustomers() {
+  const params = new URLSearchParams({page:custPage,limit:20,sort:custSort,dir:custDir});
+  const search=document.getElementById('custSearch').value;
+  const segment=document.getElementById('segmentFilter').value;
+  const platform=document.getElementById('platformFilter').value;
+  if(search)params.set('search',search);
+  if(segment)params.set('segment',segment);
+  if(platform)params.set('platform',platform);
+
+  document.getElementById('custTable').innerHTML=`<tr><td colspan="7"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>`;
+  try {
+    const d=await fetch(`${API}/customers?${params}`).then(r=>r.json());
+    document.getElementById('custTotal').textContent=`${d.total?.toLocaleString()} customers`;
+    document.getElementById('custTable').dataset.loaded='1';
+    document.getElementById('custTable').innerHTML = d.data.length===0
+      ? `<tr><td colspan="7"><div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Tidak ada hasil</div></div></td></tr>`
+      : d.data.map(c=>`
+        <tr style="cursor:pointer" onclick="openCustomer('${c.customer_id}')">
+          <td><div class="td-name">${c.name||'-'}</div><div style="font-size:11px;color:var(--text3);font-family:monospace">${c.customer_id}</div></td>
+          <td>${c.city||'-'}<br><span style="font-size:11px;color:var(--text3)">${c.province||''}</span></td>
+          <td>${segBadge(c.segment)}</td>
+          <td style="text-align:center;font-weight:600">${c.total_orders||0}</td>
+          <td style="font-weight:700;color:var(--accent-dk)">${fmt(c.total_revenue)}</td>
+          <td>${fmtDate(c.last_order_date)}</td>
+          <td style="font-size:11px;color:var(--text3)">${c.last_platform||'-'}</td>
+        </tr>`).join('');
+    renderPagination('custPagination',d.page,d.pages,d.total,'custPage','loadCustomers');
+  } catch { document.getElementById('custTable').innerHTML=`<tr><td colspan="7"><div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Gagal load data</div></div></td></tr>`; }
+}
+
+async function loadOrders() {
+  const params = new URLSearchParams({page:orderPage,limit:20});
+  const status=document.getElementById('orderStatus').value;
+  const platform=document.getElementById('orderPlatform').value;
+  const payment=document.getElementById('orderPayment')?.value||'';
+  const courier=document.getElementById('orderCourier')?.value||'';
+  const sortVal=(document.getElementById('orderSort')?.value||'order_date|desc').split('|');
+  const month=document.getElementById('orderMonth')?.value||'';
+  if(status)params.set('status',status);
+  if(platform)params.set('platform',platform);
+  if(payment)params.set('payment',payment);
+  if(courier)params.set('courier',courier);
+  if(month){params.set('date_from',month+'-01');params.set('date_to',month+'-31');}
+  params.set('sort',sortVal[0]);params.set('dir',sortVal[1]);
+
+  document.getElementById('ordersTable').innerHTML=`<tr><td colspan="8"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>`;
+  try {
+    const d=await fetch(`${API}/orders?${params}`).then(r=>r.json());
+    document.getElementById('ordersTable').dataset.loaded='1';
+    document.getElementById('ordersTable').innerHTML = d.data.length===0
+      ? `<tr><td colspan="8"><div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Tidak ada order</div></div></td></tr>`
+      : d.data.map(o=>`
+        <tr>
+          <td><span style="font-family:monospace;font-size:12px">${o.order_id}</span><br><span style="font-size:11px;color:var(--text3)">${o.source_platform}</span></td>
+          <td>${fmtDate(o.order_date)}</td>
+          <td class="td-name">${o.customer_name||'-'}</td>
+          <td>${statusBadge(o.order_status)}</td>
+          <td style="font-size:12px">${o.payment_method||'-'}</td>
+          <td style="font-weight:700;color:var(--accent-dk)">${fmt(o.net_revenue)}</td>
+          <td style="font-size:12px">${o.shipping_provider||'-'}</td>
+          <td style="text-align:center">${o.total_qty||'-'}</td>
+        </tr>`).join('');
+    renderPagination('ordersPagination',d.page,d.pages,d.total,'orderPage','loadOrders');
+  } catch { document.getElementById('ordersTable').innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Gagal load data</div></div></td></tr>`; }
+}
+
+function renderPagination(elId,page,pages,total,pageVar,loadFn) {
+  const el=document.getElementById(elId); if(!el)return;
+  el.innerHTML=`
+    <span>${total?.toLocaleString()} total · Halaman ${page} dari ${pages}</span>
+    <div class="page-btns">
+      <button class="page-btn" ${page<=1?'disabled':''} onclick="changePage('${pageVar}','${loadFn}',${page-1})">‹</button>
+      <button class="page-btn active">${page}</button>
+      <button class="page-btn" ${page>=pages?'disabled':''} onclick="changePage('${pageVar}','${loadFn}',${page+1})">›</button>
+    </div>`;
+}
+
+function changePage(pageVar,loadFn,newPage) {
+  if(pageVar==='custPage')custPage=newPage;
+  if(pageVar==='orderPage')orderPage=newPage;
+  window[loadFn]();
+}
+
+async function openCustomer(id) {
+  document.getElementById('customerModal').classList.add('open');
+  document.getElementById('modalName').textContent='Loading...';
+  document.getElementById('modalId').textContent=id;
+  document.getElementById('modalMeta').innerHTML='<div class="loading"><div class="spinner"></div></div>';
+  document.getElementById('modalOrders').innerHTML='';
+  try {
+    const c=await fetch(`${API}/customers/${id}`).then(r=>r.json());
+    document.getElementById('modalName').textContent=c.name||'-';
+    document.getElementById('modalId').textContent=c.customer_id;
+    document.getElementById('modalMeta').innerHTML=`
+      <div class="meta-item"><div class="meta-label">Segmen</div><div class="meta-value">${segBadge(c.segment)}</div></div>
+      <div class="meta-item"><div class="meta-label">Total Orders</div><div class="meta-value">${c.total_orders||0}x</div></div>
+      <div class="meta-item"><div class="meta-label">Total Revenue</div><div class="meta-value" style="color:var(--accent-dk)">${fmt(c.total_revenue)}</div></div>
+      <div class="meta-item"><div class="meta-label">Kota</div><div class="meta-value">${c.city||'-'}</div></div>
+      <div class="meta-item"><div class="meta-label">First Order</div><div class="meta-value">${fmtDate(c.first_order_date)}</div></div>
+      <div class="meta-item"><div class="meta-label">Last Order</div><div class="meta-value">${fmtDate(c.last_order_date)}</div></div>`;
+    const orders=c.orders||[];
+    document.getElementById('modalOrders').innerHTML = orders.length===0
+      ? `<tr><td colspan="6"><div class="empty empty-text">Belum ada order</div></td></tr>`
+      : orders.map(o=>`
+        <tr>
+          <td style="font-family:monospace;font-size:11px">${o.order_id}</td>
+          <td>${fmtDate(o.order_date)}</td>
+          <td>${statusBadge(o.order_status)}</td>
+          <td style="font-size:12px;max-width:200px">
+            ${(o.items||[]).map(i=>`<div style="margin-bottom:2px">${i.product_name||i.product_raw||'-'}</div>`).join('')||o.products||'-'}
+          </td>
+          <td style="font-size:12px;text-align:center">
+            ${(o.items||[]).map(i=>`<div style="margin-bottom:2px">${Math.round(i.qty_item)||1}</div>`).join('')||o.total_qty||'-'}
+          </td>
+          <td style="font-weight:700;color:var(--accent-dk)">${fmt(o.net_revenue)}</td>
+          <td style="font-size:12px">${o.shipping_provider||'-'}</td>
+        </tr>`).join('');
+  } catch { document.getElementById('modalName').textContent='Error'; }
+}
+
+function closeModal(e) { if(e.target===document.getElementById('customerModal'))closeModalDirect(); }
+function closeModalDirect() { document.getElementById('customerModal').classList.remove('open'); }
+
+function handleDrag(e,type){e.preventDefault();document.getElementById(type==='oo'?'ooDropzone':'menDropzone').classList.add('dragover');}
+function handleDragLeave(e,type){document.getElementById(type==='oo'?'ooDropzone':'menDropzone').classList.remove('dragover');}
+function handleDrop(e,platform){e.preventDefault();const id=platform==='orderonline'?'oo':'men';document.getElementById(id+'Dropzone').classList.remove('dragover');const file=e.dataTransfer.files[0];if(file)uploadFile(file,platform);}
+function handleFileSelect(input,platform){if(input.files[0])uploadFile(input.files[0],platform);}
+
+async function uploadFile(file,platform) {
+  const statusEl=document.getElementById(platform==='orderonline'?'ooStatus':'menStatus');
+  statusEl.innerHTML=`<div class="loading" style="padding:8px 0"><div class="spinner"></div> Mengupload...</div>`;
+  const fd=new FormData(); fd.append('file',file);
+  try {
+    const r=await fetch(`${API}/import/${platform}`,{method:'POST',body:fd});
+    const d=await r.json();
+    statusEl.innerHTML=`<span style="color:var(--success)">✅ ${d.filename} — ${d.rows} rows diterima</span>`;
+    toast(`File berhasil diupload`,'success');
+  } catch {
+    statusEl.innerHTML=`<span style="color:var(--danger)">❌ Gagal upload</span>`;
+    toast('Upload gagal','error');
+  }
+}
+
+
+// ── LEADS ──
+let leadsPage = 1, leadsTimer = null;
+
+function debounceLeads() {
+  clearTimeout(leadsTimer);
+  leadsTimer = setTimeout(() => { leadsPage = 1; loadLeads(); }, 400);
+}
+
+async function loadLeadsPipelineStats() {
+  try {
+    const d = await fetch(API + '/leads/pipeline-stats').then(r => r.json());
+    const colors = {
+      'Asking Product': 'var(--accent-lt)',
+      'Consultation': '#DEEEFF',
+      'Interested': '#D4F5E7',
+      'Order Created': '#EDE8FF',
+      'Waiting Payment': '#FFE8E8',
+      'Completed': '#D4F5E7',
+      'Tidak Jadi Beli': 'var(--bg3)',
+    };
+    document.getElementById('leadsPipelineStats').innerHTML = d.data.map(s => `
+      <div style="background:${colors[s.pipeline_status]||'var(--bg3)'};border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer"
+        onclick="document.getElementById('leadsPipelineFilter').value='${s.pipeline_status}';loadLeads()">
+        <div style="font-weight:700;color:var(--text)">${s.pipeline_status||'Unknown'}</div>
+        <div style="color:var(--text3)">${s.total} leads · ${s.converted} closing</div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function loadLeads() {
+  const params = new URLSearchParams({page: leadsPage, limit: 20});
+  const search = document.getElementById('leadsSearch').value;
+  const pipeline = document.getElementById('leadsPipelineFilter').value;
+  const converted = document.getElementById('leadsConvertedFilter').value;
+  const sortVal = (document.getElementById('leadsSortSelect')?.value || 'last_message_at|desc').split('|');
+  const label = document.getElementById('leadsLabelFilter')?.value||'';
+  if (search) params.set('search', search);
+  if (pipeline) params.set('pipeline_status', pipeline);
+  if (converted) params.set('converted', converted);
+  if (label) params.set('label', label);
+  params.set('sort', sortVal[0]);
+  params.set('dir', sortVal[1]);
+
+  document.getElementById('leadsTable').innerHTML = `<tr><td colspan="9"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>`;
+
+  try {
+    const d = await fetch(`${API}/leads?${params}`).then(r => r.json());
+    document.getElementById('leadsTotal').textContent = `${d.total?.toLocaleString()} leads`;
+    document.getElementById('leadsTable').innerHTML = d.data.length === 0
+      ? `<tr><td colspan="9"><div class="empty"><div class="empty-icon">🎯</div><div>Tidak ada leads</div></div></td></tr>`
+      : d.data.map(l => `
+        <tr>
+          <td><div class="td-name">${l.name||'-'}</div></td>
+          <td style="font-family:monospace;font-size:11px">${l.phone||'-'}</td>
+          <td>${pipelineBadge(l.pipeline_status)}</td>
+          <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text3)">${l.label_names||'-'}</td>
+          <td style="font-size:12px">${l.kota||'-'}</td>
+          <td style="font-size:11px">${l.rumah_walet||'-'}</td>
+          <td>${l.converted ? '<span class="badge badge-loyal">✅ Closing</span>' : '<span class="badge badge-churn">Belum</span>'}</td>
+          <td style="font-size:11px;color:var(--text3)">${fmtDate(l.last_message_at)}</td>
+          <td><button onclick="openLeadEdit('${l.id}')" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);cursor:pointer;font-size:11px;font-family:var(--font-body)">✏️ Edit</button></td>
+        </tr>`).join('');
+    renderPagination('leadsPagination', d.page, d.pages, d.total, 'leadsPage', 'loadLeads');
+  } catch(e) {
+    document.getElementById('leadsTable').innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-icon">⚠️</div><div>Gagal load</div></div></td></tr>`;
+  }
+}
+
+function pipelineBadge(status) {
+  const colors = {
+    'Asking Product': 'background:#FEF3DC;color:#C4841A',
+    'Consultation': 'background:#DEEEFF;color:#1A5A9A',
+    'Interested': 'background:#D4F5E7;color:#1A7A50',
+    'Order Created': 'background:#EDE8FF;color:#6B4FBB',
+    'Waiting Payment': 'background:#FFE8E8;color:#A03030',
+    'Completed': 'background:#D4F5E7;color:#1A7A50',
+    'Tidak Jadi Beli': 'background:var(--bg3);color:var(--text3)',
+  };
+  const style = colors[status] || 'background:var(--bg3);color:var(--text3)';
+  return `<span class="badge" style="${style}">${status||'Unknown'}</span>`;
+}
+
+async function openLeadEdit(id) {
+  document.getElementById('leadModal').classList.add('open');
+  document.getElementById('leadModalName').textContent = 'Loading...';
+  document.getElementById('leadModalId').value = id;
+  try {
+    const l = await fetch(`${API}/leads/${id}`).then(r => r.json());
+    document.getElementById('leadModalName').textContent = l.name || '-';
+    document.getElementById('leadModalPhone').textContent = l.phone || '-';
+    document.getElementById('editPipeline').value = l.pipeline_status || '';
+    document.getElementById('editKota').value = l.kota || '';
+    document.getElementById('editLabel').value = l.label_names || '';
+    document.getElementById('editNote').value = l.note || '';
+    // Parse labels ke dropdown
+    const labels = (l.label_names || '').split(',').map(x => x.trim());
+    const temps = ['COLD','WARM','HOT'];
+    const tracks = ['T1-Akuisisi','T2-Nurturing','T3-Fresh','T3-Lama','T4-Winback','Arsip'];
+    const produks = ['Parfum','Anti Jamur','Suara Walet','Seminar','Denah RBW','Konsultasi RBW'];
+    const sumbers = ['Facebook Ads','Organik Web','Marketplace','Referral','WA Organik'];
+    document.getElementById('editTemp').value = labels.find(l => temps.includes(l)) || '';
+    document.getElementById('editTrack').value = labels.find(l => tracks.includes(l)) || '';
+    document.getElementById('editProduk').value = labels.find(l => produks.includes(l)) || '';
+    document.getElementById('editSumber').value = labels.find(l => sumbers.includes(l)) || '';
+    document.getElementById('infoRBW').textContent = l.rumah_walet || '-';
+    document.getElementById('infoUsia').textContent = l.usia_rbw || '-';
+    document.getElementById('infoUkuran').textContent = l.ukuran_rbw || '-';
+    document.getElementById('infoLantai').textContent = l.lantai_rbw || '-';
+    document.getElementById('infoSarang').textContent = l.jumlah_sarang || '-';
+    document.getElementById('infoPanen').textContent = l.panen_per_3bulan || '-';
+    document.getElementById('infoFirstMsg').textContent = l.first_message || '-';
+  } catch(e) { document.getElementById('leadModalName').textContent = 'Error'; }
+}
+
+async function saveLead() {
+  const id = document.getElementById('leadModalId').value;
+  // Gabung semua label terstruktur
+  const labelParts = [
+    document.getElementById('editTemp').value,
+    document.getElementById('editTrack').value,
+    document.getElementById('editProduk').value,
+    document.getElementById('editSumber').value,
+  ].filter(x => x);
+  const body = {
+    pipeline_status: document.getElementById('editPipeline').value,
+    kota: document.getElementById('editKota').value,
+    label_names: labelParts.join(', ') || null,
+    note: document.getElementById('editNote').value,
+    name: document.getElementById('leadModalName').value,
+  };
+  try {
+    await fetch(`${API}/leads/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast('Lead berhasil disimpan', 'success');
+    closeLeadModalDirect();
+    loadLeads();
+  } catch(e) { toast('Gagal menyimpan', 'error'); }
+}
+
+function closeLeadModal(e) { if (e.target === document.getElementById('leadModal')) closeLeadModalDirect(); }
+function closeLeadModalDirect() { document.getElementById('leadModal').classList.remove('open'); }
+
+async function importLeads(input) {
+  const file = input.files[0];
+  if (!file) return;
+  toast('Mengupload file Cekat...', 'success');
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const d = await fetch(`${API}/leads/import`, { method: 'POST', body: fd }).then(r => r.json());
+    toast(`Import selesai: ${d.inserted} baru, ${d.updated} diupdate`, 'success');
+    loadLeads();
+    loadLeadsPipelineStats();
+  } catch(e) { toast('Import gagal', 'error'); }
+}
+
+function renderChart() {
+  const n = parseInt(document.getElementById('chartPeriod')?.value||'24');
+  const months = (window._chartMonths||[]).slice(-n);
+  const maxRev = Math.max(...months.map(m=>m.revenue||0));
+  document.getElementById('revenueChart').innerHTML = months.map(m=>{
+    const pct = maxRev>0?Math.max(8,(m.revenue/maxRev)*170):8;
+    const newH = Math.round(pct*(m.revenue>0?(m.revenue_new||0)/m.revenue:0));
+    const repH = pct-newH;
+    return '<div class="bar-wrap"><div style="display:flex;flex-direction:column;width:100%;height:'+pct+'px;border-radius:4px 4px 0 0;overflow:hidden;cursor:pointer" title="'+m.month+': '+fmt(m.revenue)+' (Baru: '+fmt(m.revenue_new||0)+', Repeat: '+fmt(m.revenue_repeat||0)+')"><div style="height:'+newH+'px;background:linear-gradient(180deg,#E8A020,rgba(232,160,32,0.5));min-height:'+(newH>0?2:0)+'px"></div><div style="height:'+repH+'px;background:linear-gradient(180deg,#2D7DD2,rgba(45,125,210,0.4));min-height:'+(repH>0?2:0)+'px"></div></div><div class="bar-label">'+(m.month||'').slice(5)+'</div></div>';
+  }).join('');
+}
+function sortCustDirect() {
+  const val = document.getElementById('custSortSelect').value.split('|');
+  custSort = val[0]; custDir = val[1]; custPage = 1; loadCustomers();
+}
+checkHealth();
+loadDashboard();
+</script>
+</body>
+</html>
