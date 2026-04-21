@@ -814,55 +814,21 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
     """))
 
     conn.commit()
-    # Auto sync tracks setelah import mengantar
+
+    # Auto sync tracks setelah import mengantar — pakai logic kanonis
     try:
-        from datetime import timedelta
-        cutoff_90 = datetime.now() - timedelta(days=90)
-        buyer_phones = set(r[0] for r in conn.execute(text("""
-            SELECT DISTINCT c.phone_raw FROM orders o
-            JOIN customers c ON o.customer_id = c.customer_id
-            WHERE o.order_status = 'completed'
-            AND o.order_date >= :cutoff AND c.phone_raw IS NOT NULL
-        """), {"cutoff": cutoff_90}).fetchall())
-        rows = conn.execute(text("""
-            SELECT id, phone, pipeline_status, converted, created_at, last_message_at
-            FROM leads
-        """)).fetchall()
-        for row in rows:
-            lid, phone, pipeline, converted, created_at, last_msg = row
-            status = str(pipeline or "").strip()
-            if status == "Blacklist":
-                track = "Arsip"
-            elif phone and phone in buyer_phones:
-                track = "T3-Fresh"
-            else:
-                ref = last_msg or created_at
-                days_old = (datetime.now() - ref).days if ref else 999
-                if days_old <= 90:
-                    track = "T2-Nurturing"
-                elif last_msg:
-                    track = "T4-Winback"
-                else:
-                    track = "T1-Akuisisi"
-            conn.execute(text("""
-                UPDATE leads SET track = :track
-                WHERE id = :id AND (track IS NULL OR track != :track)
-            """), {"track": track, "id": lid})
-            if phone and phone in buyer_phones:
-                conn.execute(text("""
-                    UPDATE leads SET converted = 1
-                    WHERE id = :id AND converted = 0
-                """), {"id": lid})
-        conn.commit()
+        sync_result = _recalc_tracks(conn)
     except Exception as e:
         print(f"Auto sync tracks warning: {e}")
+        sync_result = None
 
     return {
         "status": "success",
         "filename": file.filename,
         "inserted": inserted,
         "skipped_duplicate": skipped,
-        "leads_synced": leads_synced
+        "leads_synced": leads_synced,
+        "tracks_recalc": sync_result,
     }
 
 
@@ -870,6 +836,97 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
 # ─────────────────────────────────────────
 # LEADS
 # ─────────────────────────────────────────
+
+def _recalc_tracks(conn):
+    """
+    Hitung ulang kolom `track` untuk SEMUA leads dengan satu logic kanonis.
+    Dipakai oleh /leads/sync-tracks, /leads/import, dan /import/mengantar
+    supaya tidak ada drift antar endpoint.
+
+    Aturan track (sesuai panduan broadcast):
+    - Blacklist                        → Arsip
+    - Pernah beli (phone di orders):
+        last_order ≤ 90 hari           → T3-Fresh
+        last_order ≤ 365 hari          → T3-Lama
+        last_order > 365 hari          → T4-Winback
+    - Belum pernah beli:
+        converted = 1                  → T3-Fresh (match manual)
+        usia dari created_at ≤ 14 hari → T1-Akuisisi
+        usia dari last_msg ≤ 90 hari   → T2-Nurturing
+        selain itu                     → T4-Winback
+    """
+    from datetime import datetime, timedelta
+    now = datetime.now()
+
+    buyer_last_order = {}
+    for r in conn.execute(text("""
+        SELECT c.phone_raw, MAX(o.order_date) AS last_order
+        FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        WHERE o.order_status = 'completed'
+          AND c.phone_raw IS NOT NULL
+        GROUP BY c.phone_raw
+    """)).fetchall():
+        buyer_last_order[r[0]] = r[1]
+
+    rows = conn.execute(text("""
+        SELECT id, phone, pipeline_status, converted,
+               created_at, last_message_at, track
+        FROM leads
+    """)).fetchall()
+
+    updated = 0
+    track_counts = {}
+
+    for row in rows:
+        lid, phone, pipeline, converted, created_at, last_msg, current_track = row
+        status = str(pipeline or "").strip()
+
+        if status == "Blacklist":
+            track = "Arsip"
+        elif phone and phone in buyer_last_order:
+            last_order = buyer_last_order[phone]
+            days_since_buy = (now - last_order).days if last_order else 999
+            if days_since_buy <= 90:
+                track = "T3-Fresh"
+            elif days_since_buy <= 365:
+                track = "T3-Lama"
+            else:
+                track = "T4-Winback"
+        else:
+            days_since_created = (now - created_at).days if created_at else 999
+            ref = last_msg or created_at
+            days_old = (now - ref).days if ref else 999
+            if converted and converted == 1:
+                track = "T3-Fresh"
+            elif days_since_created <= 14:
+                track = "T1-Akuisisi"
+            elif days_old <= 90:
+                track = "T2-Nurturing"
+            else:
+                track = "T4-Winback"
+
+        if current_track != track:
+            conn.execute(text(
+                "UPDATE leads SET track = :track WHERE id = :id"
+            ), {"track": track, "id": lid})
+            updated += 1
+        track_counts[track] = track_counts.get(track, 0) + 1
+
+        # Sync converted kalau phone ada di buyer
+        if phone and phone in buyer_last_order:
+            conn.execute(text(
+                "UPDATE leads SET converted = 1 WHERE id = :id AND converted = 0"
+            ), {"id": lid})
+
+    conn.commit()
+    return {
+        "processed": len(rows),
+        "updated": updated,
+        "distribution": track_counts,
+        "buyers_matched": len(buyer_last_order),
+    }
+
 
 @app.get("/leads")
 def list_leads(
@@ -1109,127 +1166,24 @@ async def import_leads(file: UploadFile = File(...), conn=Depends(get_db)):
 
     conn.commit()
 
-    # Auto sync tracks setelah import leads
+    # Auto sync tracks setelah import leads — pakai logic kanonis
     try:
-        from datetime import datetime, timedelta
-        cutoff = datetime.now() - timedelta(days=90)
-        buyer_phones = set(r[0] for r in conn.execute(text("""
-            SELECT DISTINCT c.phone_raw FROM orders o
-            JOIN customers c ON o.customer_id = c.customer_id
-            WHERE o.order_status = 'completed'
-            AND o.order_date >= :cutoff AND c.phone_raw IS NOT NULL
-        """), {"cutoff": cutoff}).fetchall())
-        rows = conn.execute(text(
-            "SELECT id, phone, pipeline_status, converted, created_at, last_message_at FROM leads"
-        )).fetchall()
-        now = datetime.now()
-        for row in rows:
-            lid, phone, pipeline, converted, created_at, last_msg = row
-            status = str(pipeline or "").strip()
-            if status == "Blacklist":
-                track = "Arsip"
-            elif phone and phone in buyer_phones:
-                track = "T3-Fresh"
-            else:
-                days_since_created = (now - created_at).days if created_at else 999
-                ref = last_msg or created_at
-                days_old = (now - ref).days if ref else 999
-                if converted and converted == 1:
-                    track = "T3-Fresh"
-                elif days_since_created <= 14:
-                    track = "T1-Akuisisi"
-                elif days_old <= 90:
-                    track = "T2-Nurturing"
-                else:
-                    track = "T4-Winback"
-            conn.execute(text(
-                "UPDATE leads SET track = :track WHERE id = :id AND (track IS NULL OR track != :track)"
-            ), {"track": track, "id": lid})
-        conn.commit()
+        sync_result = _recalc_tracks(conn)
     except Exception as e:
         print(f"Auto sync tracks warning: {e}")
+        sync_result = None
 
     return {
         "status": "success",
         "inserted": inserted,
         "updated": updated,
-        "total": inserted + updated
+        "total": inserted + updated,
+        "tracks_recalc": sync_result,
     }
 
 
 @app.post("/leads/sync-tracks")
 async def sync_tracks(conn=Depends(get_db)):
-    from datetime import datetime, timedelta
-    now = datetime.now()
-    cutoff_90 = now - timedelta(days=90)
-
-    # Ambil semua phone yang punya order completed dalam 90 hari terakhir
-    buyer_last_order = {}
-    for r in conn.execute(text("""
-        SELECT c.phone_raw, MAX(o.order_date) as last_order
-        FROM orders o
-        JOIN customers c ON o.customer_id = c.customer_id
-        WHERE o.order_status = 'completed'
-        AND c.phone_raw IS NOT NULL
-        GROUP BY c.phone_raw
-    """)).fetchall():
-        buyer_last_order[r[0]] = r[1]
-
-    # Ambil semua leads
-    rows = conn.execute(text("""
-        SELECT id, phone, pipeline_status, converted,
-               created_at, last_message_at
-        FROM leads
-    """)).fetchall()
-
-    updated = 0
-    track_counts = {}
-
-    for row in rows:
-        lid, phone, pipeline, converted, created_at, last_msg = row
-        status = str(pipeline or "").strip()
-
-        # Skip blacklist
-        if status == "Blacklist":
-            track = "Arsip"
-
-        # Customer — cek kapan terakhir beli
-        elif phone and phone in buyer_last_order:
-            last_order = buyer_last_order[phone]
-            days_since_buy = (now - last_order).days if last_order else 999
-            if days_since_buy <= 90:
-                track = "T3-Fresh"
-            elif days_since_buy <= 365:
-                track = "T3-Lama"
-            else:
-                track = "T4-Winback"
-        else:
-            # Leads belum pernah beli
-            days_since_created = (now - created_at).days if created_at else 999
-            ref = last_msg or created_at
-            days_old = (now - ref).days if ref else 999
-            if converted and converted == 1:
-                track = "T3-Fresh"  # sudah beli tapi tidak ada di buyer_last_order
-            elif days_since_created <= 14:
-                track = "T1-Akuisisi"  # leads baru < 2 minggu belum beli
-            elif days_old <= 90:
-                track = "T2-Nurturing"  # aktif 15-90 hari belum beli
-            else:
-                track = "T4-Winback"  # tidak aktif > 90 hari
-
-        result = conn.execute(text("""
-            UPDATE leads SET track = :track
-            WHERE id = :id AND (track IS NULL OR track != :track)
-        """), {"track": track, "id": lid})
-        if result.rowcount > 0:
-            updated += 1
-        track_counts[track] = track_counts.get(track, 0) + 1
-
-    conn.commit()
-    return {
-        "status": "success",
-        "processed": len(rows),
-        "updated": updated,
-        "distribution": track_counts,
-        "buyers_last_90d": len(buyer_last_order)
-    }
+    """Hitung ulang track semua leads. Dipanggil manual / cron."""
+    result = _recalc_tracks(conn)
+    return {"status": "success", **result}
