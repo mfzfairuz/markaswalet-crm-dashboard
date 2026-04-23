@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markaswalet Marketing</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:         #FDFAF4;
+  --bg2:        #FFFFFF;
+  --bg3:        #F5F0E8;
+  --border:     #E8E0CE;
+  --border2:    #D4C9B0;
+  --accent:     #E8A020;
+  --accent-dk:  #C4841A;
+  --accent-lt:  #FEF3DC;
+  --accent2:    #2D7DD2;
+  --text:       #1A1A1A;
+  --text2:      #5A5040;
+  --text3:      #9A8E7A;
+  --danger:     #D64C4C;
+  --success:    #2A9D6F;
+  --font-head:  'Syne', sans-serif;
+  --font-body:  'DM Sans', sans-serif;
+  --radius:     12px;
+  --radius-sm:  8px;
+  --shadow:     0 2px 12px rgba(0,0,0,0.06);
+  --shadow-lg:  0 8px 40px rgba(0,0,0,0.12);
+  --transition: all 0.18s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.6; min-height: 100vh; }
+
+.shell { max-width: 1240px; margin: 0 auto; padding: 32px 28px 64px; }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); display: grid; place-items: center; color: #fff; font-family: var(--font-head); font-weight: 800; }
+.brand-name { font-family: var(--font-head); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
+.brand-tag { color: var(--text3); font-size: 12px; }
+
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.btn { border: 1px solid var(--border); background: var(--bg2); color: var(--text); padding: 8px 14px; border-radius: var(--radius-sm); font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; transition: var(--transition); }
+.btn:hover { border-color: var(--border2); background: var(--bg3); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dk); border-color: var(--accent-dk); }
+
+.hero { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; margin-bottom: 28px; box-shadow: var(--shadow); }
+.hero h1 { font-family: var(--font-head); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; margin-bottom: 8px; }
+.hero p { color: var(--text2); max-width: 640px; }
+
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+@media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+.card-label { color: var(--text3); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+.card-value { font-family: var(--font-head); font-weight: 700; font-size: 26px; letter-spacing: -0.01em; }
+.card-delta { margin-top: 6px; font-size: 12px; color: var(--text3); }
+.card-delta.up { color: var(--success); }
+.card-delta.down { color: var(--danger); }
+
+.section { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); margin-bottom: 20px; }
+.section h2 { font-family: var(--font-head); font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+.empty { color: var(--text3); font-size: 13px; padding: 24px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius-sm); }
+
+.footer { margin-top: 40px; color: var(--text3); font-size: 12px; text-align: center; }
+.footer a { color: var(--accent2); text-decoration: none; }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">M</div>
+        <div>
+          <div class="brand-name">Markaswalet Marketing</div>
+          <div class="brand-tag">Campaign &amp; Acquisition Dashboard</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <a class="btn" href="https://markaswalet-dashboard.web.app/" target="_blank" rel="noopener">CRM Dashboard</a>
+      </div>
+    </header>
+
+    <section class="hero">
+      <h1>Ringkasan Marketing</h1>
+      <p>Dashboard ini memantau performa akuisisi, channel, dan campaign. Data dan metrik akan dihubungkan ke backend CRM yang sama.</p>
+    </section>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">Total Leads</div>
+        <div class="card-value" id="m-total-leads">—</div>
+        <div class="card-delta">Belum terhubung</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Conversion Rate</div>
+        <div class="card-value" id="m-conv-rate">—</div>
+        <div class="card-delta">Belum terhubung</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Cost per Lead</div>
+        <div class="card-value" id="m-cpl">—</div>
+        <div class="card-delta">Belum terhubung</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Active Campaigns</div>
+        <div class="card-value" id="m-campaigns">—</div>
+        <div class="card-delta">Belum terhubung</div>
+      </div>
+    </div>
+
+    <section class="section">
+      <h2>Leads per Channel</h2>
+      <div class="empty">Belum ada data. Endpoint <code>/marketing/channels</code> belum diimplementasikan.</div>
+    </section>
+
+    <section class="section">
+      <h2>Campaign Performance</h2>
+      <div class="empty">Belum ada data. Endpoint <code>/marketing/campaigns</code> belum diimplementasikan.</div>
+    </section>
+
+    <div class="footer">
+      Markaswalet &middot; Marketing Dashboard &middot; <a href="https://markaswalet-dashboard.web.app/">CRM</a>
+    </div>
+  </div>
+
+<script>
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:8080'
+  : 'https://markaswalet-dashboard-api.example.com';
+
+async function loadOverview() {
+  try {
+    const res = await fetch(`${API_BASE}/marketing/overview`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.total_leads != null) document.getElementById('m-total-leads').textContent = data.total_leads.toLocaleString('id-ID');
+    if (data.conversion_rate != null) document.getElementById('m-conv-rate').textContent = `${(data.conversion_rate * 100).toFixed(1)}%`;
+    if (data.cost_per_lead != null) document.getElementById('m-cpl').textContent = `Rp ${data.cost_per_lead.toLocaleString('id-ID')}`;
+    if (data.active_campaigns != null) document.getElementById('m-campaigns').textContent = data.active_campaigns;
+  } catch (e) {
+    // endpoint not ready yet — cards stay as "—"
+  }
+}
+loadOverview();
+</script>
+</body>
+</html>

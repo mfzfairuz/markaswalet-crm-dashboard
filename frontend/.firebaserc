@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "markaswalet-dashboard"
+  },
+  "targets": {
+    "markaswalet-dashboard": {
+      "hosting": {
+        "crm": [
+          "markaswalet-dashboard"
+        ],
+        "marketing": [
+          "markaswalet-marketing"
+        ]
+      }
+    }
   }
 }
