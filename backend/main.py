@@ -737,26 +737,28 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
     )).fetchall()
     cust_map = {row[0]: (row[1], row[2]) for row in cust_rows}
 
-    # Load existing orders untuk skip duplicate
-    existing_orders = set(r[0] for r in conn.execute(
-        text("SELECT order_id FROM orders WHERE source_platform='mengantar'")
-    ).fetchall())
+    # Load existing orders + status (untuk deteksi perubahan, bukan cuma duplikat)
+    existing_orders = {r[0]: r[1] for r in conn.execute(
+        text("SELECT order_id, order_status FROM orders WHERE source_platform='mengantar'")
+    ).fetchall()}
 
     inserted = 0
+    status_updated = 0
     skipped = 0
     leads_synced = 0
+    touched_customers = set()
+    status_changes = {}  # {(from_status, to_status): count}
 
     for _, row in df.iterrows():
         order_id = clean(row.get("Order ID", ""))
         if not order_id: continue
-        if order_id in existing_orders: skipped += 1; continue
 
         phone = clean_phone(row.get("Customer Phone Number", ""))
         name = clean(row.get("Customer Name", ""))
         province = clean(row.get("Province", ""))
         city = clean(row.get("City", ""))
         courier = norm_courier(row.get("Expedition", ""))
-        status = map_status(row.get("Last Status", ""))
+        new_status = map_status(row.get("Last Status", ""))
         order_date = clean_date(row.get("Create Date", ""))
         if hasattr(order_date, "to_pydatetime"): order_date = order_date.to_pydatetime()
         goods = clean(row.get("Goods Description", "")) or ""
@@ -776,7 +778,7 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
             # Customer baru
             customer_id = phone
             conn.execute(text("""
-                INSERT IGNORE INTO customers 
+                INSERT IGNORE INTO customers
                 (customer_id, phone_raw, name, city, province, segment,
                  total_orders, total_revenue, avg_order_value, first_order_date, last_order_date, last_platform)
                 VALUES (:cid, :phone, :name, :city, :province, 'New',
@@ -785,7 +787,41 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
                    "city": city, "province": province, "rev": net_revenue, "dt": order_date})
             cust_map[phone] = (customer_id, name)
 
-        # Insert order
+        if customer_id:
+            touched_customers.add(customer_id)
+
+        # Order sudah ada → cek apakah status / data perlu di-update
+        if order_id in existing_orders:
+            old_status = existing_orders[order_id]
+            if old_status == new_status:
+                skipped += 1
+                continue
+            # Status berubah (misal processing_unpaid → completed) → update
+            conn.execute(text("""
+                UPDATE orders SET
+                    order_status = :status,
+                    payment_method = :payment,
+                    shipping_provider = :courier,
+                    net_revenue = :rev,
+                    shipping_cost = :ship,
+                    total_qty = :qty
+                WHERE order_id = :oid AND source_platform = 'mengantar'
+            """), {"oid": order_id, "status": new_status, "payment": payment,
+                   "courier": courier, "rev": net_revenue, "ship": shipping_fee, "qty": qty})
+            existing_orders[order_id] = new_status
+            status_updated += 1
+            key = (old_status, new_status)
+            status_changes[key] = status_changes.get(key, 0) + 1
+
+            # Kalau status berubah jadi completed, sync leads converted juga
+            if phone and new_status == "completed":
+                result = conn.execute(text(
+                    "UPDATE leads SET converted=1, customer_id=:cid WHERE phone=:phone AND converted=0"
+                ), {"cid": customer_id, "phone": phone})
+                leads_synced += result.rowcount
+            continue
+
+        # Order baru → insert
         conn.execute(text("""
             INSERT INTO orders (order_id, source_platform, customer_id, customer_name,
                 order_date, order_status, payment_method, shipping_provider,
@@ -794,7 +830,7 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
                 :dt, :status, :payment, :courier,
                 :rev, :ship, 0, :qty)
         """), {"oid": order_id, "cid": customer_id, "cname": customer_name,
-               "dt": order_date, "status": status, "payment": payment,
+               "dt": order_date, "status": new_status, "payment": payment,
                "courier": courier, "rev": net_revenue, "ship": shipping_fee, "qty": qty})
 
         # Insert order items dari Goods Description
@@ -807,34 +843,58 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
             """), {"oid": order_id, "prod": prod})
 
         # Auto-sync leads converted
-        if phone and status == "completed":
+        if phone and new_status == "completed":
             result = conn.execute(text(
                 "UPDATE leads SET converted=1, customer_id=:cid WHERE phone=:phone AND converted=0"
             ), {"cid": customer_id, "phone": phone})
             leads_synced += result.rowcount
 
-        existing_orders.add(order_id)
+        existing_orders[order_id] = new_status
         inserted += 1
 
-    # Update customer stats untuk yang baru diimport
-    conn.execute(text("""
-        UPDATE customers c SET
-            total_orders = (SELECT COUNT(*) FROM orders WHERE customer_id=c.customer_id AND order_status='completed'),
-            total_revenue = (SELECT COALESCE(SUM(net_revenue),0) FROM orders WHERE customer_id=c.customer_id AND order_status='completed'),
-            last_order_date = (SELECT MAX(order_date) FROM orders WHERE customer_id=c.customer_id),
-            last_platform = 'mengantar'
-        WHERE last_platform='mengantar'
-    """))
-    # Update segment berdasarkan total_orders dan recency
-    conn.execute(text("""
-        UPDATE customers SET segment =
-            CASE
-                WHEN total_orders >= 4 THEN 'Loyal'
-                WHEN total_orders >= 2 THEN 'Returning'
-                WHEN total_orders = 1 AND DATEDIFF(NOW(), last_order_date) <= 90 THEN 'New'
-                ELSE 'Churn'
-            END
-    """))
+    # Recalc customer stats untuk SEMUA customer yang ter-touch
+    # (termasuk yang last_platform-nya orderonline tapi punya order Mengantar)
+    if touched_customers:
+        ids = list(touched_customers)
+        from sqlalchemy import bindparam
+        recalc_stmt = text("""
+            UPDATE customers c SET
+                total_orders = (SELECT COUNT(*) FROM orders
+                                WHERE customer_id = c.customer_id AND order_status = 'completed'),
+                total_revenue = (SELECT COALESCE(SUM(net_revenue), 0) FROM orders
+                                 WHERE customer_id = c.customer_id AND order_status = 'completed'),
+                last_order_date = (SELECT MAX(order_date) FROM orders
+                                   WHERE customer_id = c.customer_id),
+                first_order_date = COALESCE(c.first_order_date,
+                    (SELECT MIN(order_date) FROM orders WHERE customer_id = c.customer_id)),
+                avg_order_value = CASE
+                    WHEN (SELECT COUNT(*) FROM orders
+                          WHERE customer_id = c.customer_id AND order_status = 'completed') > 0
+                    THEN (SELECT COALESCE(SUM(net_revenue), 0) FROM orders
+                          WHERE customer_id = c.customer_id AND order_status = 'completed')
+                       / (SELECT COUNT(*) FROM orders
+                          WHERE customer_id = c.customer_id AND order_status = 'completed')
+                    ELSE 0
+                END,
+                last_platform = (SELECT source_platform FROM orders
+                                 WHERE customer_id = c.customer_id
+                                 ORDER BY order_date DESC LIMIT 1)
+            WHERE c.customer_id IN :ids
+        """).bindparams(bindparam('ids', expanding=True))
+        conn.execute(recalc_stmt, {"ids": ids})
+
+        # Update segment untuk customer yang ter-touch
+        seg_stmt = text("""
+            UPDATE customers SET segment =
+                CASE
+                    WHEN total_orders >= 4 THEN 'Loyal'
+                    WHEN total_orders >= 2 THEN 'Returning'
+                    WHEN total_orders = 1 AND DATEDIFF(NOW(), last_order_date) <= 90 THEN 'New'
+                    ELSE 'Churn'
+                END
+            WHERE customer_id IN :ids
+        """).bindparams(bindparam('ids', expanding=True))
+        conn.execute(seg_stmt, {"ids": ids})
 
     conn.commit()
 
@@ -849,8 +909,14 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
         "status": "success",
         "filename": file.filename,
         "inserted": inserted,
+        "status_updated": status_updated,
         "skipped_duplicate": skipped,
         "leads_synced": leads_synced,
+        "customers_recalc": len(touched_customers),
+        "status_changes": [
+            {"from": k[0], "to": k[1], "count": v}
+            for k, v in sorted(status_changes.items(), key=lambda x: -x[1])
+        ],
         "tracks_recalc": sync_result,
     }
 

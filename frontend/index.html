@@ -1260,6 +1260,14 @@ function showTrackRecalcToasts(sync) {
   });
 }
 
+function showStatusChangeToasts(changes) {
+  if (!changes || changes.length === 0) return;
+  const top = changes.slice(0, 3);
+  top.forEach((c, i) => {
+    setTimeout(() => toast(`${c.count} order: ${c.from} → ${c.to}`, 'success'), i * 120);
+  });
+}
+
 async function uploadFile(file,platform) {
   const statusEl=document.getElementById(platform==='orderonline'?'ooStatus':'menStatus');
   statusEl.innerHTML=`<div class="loading" style="padding:8px 0"><div class="spinner"></div> Mengupload...</div>`;
@@ -1267,8 +1275,14 @@ async function uploadFile(file,platform) {
   try {
     const r=await fetch(`${API}/import/${platform}`,{method:'POST',body:fd});
     const d=await r.json();
-    statusEl.innerHTML=`<span style="color:var(--success)">✅ ${d.filename||'File'} — ${d.inserted||0} baru, ${d.skipped_duplicate||0} duplikat dilewati, ${d.leads_synced||0} leads diupdate</span>`;
-    toast(`File berhasil diupload`,'success');
+    const parts = [];
+    parts.push(`${d.inserted||0} baru`);
+    if (d.status_updated) parts.push(`${d.status_updated} status update`);
+    parts.push(`${d.skipped_duplicate||0} skip`);
+    if (d.leads_synced) parts.push(`${d.leads_synced} leads converted`);
+    statusEl.innerHTML=`<span style="color:var(--success)">✅ ${d.filename||'File'} — ${parts.join(', ')}</span>`;
+    toast(`Upload selesai: ${parts.join(' · ')}`,'success');
+    showStatusChangeToasts(d.status_changes);
     showTrackRecalcToasts(d.tracks_recalc);
   } catch {
     statusEl.innerHTML=`<span style="color:var(--danger)">❌ Gagal upload</span>`;
