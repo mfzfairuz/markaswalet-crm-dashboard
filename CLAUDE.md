@@ -159,7 +159,23 @@ Re-upload file Mengantar dengan `order_id` yang sama akan **update status** di D
 Untuk normalize data legacy (status raw seperti "delivery return", "rts in progress" yang masuk via `load_data.py`/`run.py`), ada endpoint sekali pakai `/admin/normalize-mengantar-status?dry_run=true|false`.
 
 ### Shopee Import
-Endpoint `/import/shopee` (`backend/main.py`) menerima file export Seller Center (49 kolom Bahasa Indonesia, sheet `orders`). Karakter unik yang perlu diperhatikan:
+Endpoint `/import/shopee` (`backend/main.py`) menerima file export Seller Center (49 kolom Bahasa Indonesia, sheet `orders`).
+
+**WAJIB satu kali**: kolom `source_platform` di `orders`/`order_items` dan `first_platform`/`last_platform` di `customers` adalah ENUM. Sebelum import Shopee pertama, extend ENUM:
+
+```sql
+ALTER TABLE orders
+  MODIFY COLUMN source_platform ENUM('orderonline','mengantar','shopee') NOT NULL;
+ALTER TABLE order_items
+  MODIFY COLUMN source_platform ENUM('orderonline','mengantar','shopee') NOT NULL;
+ALTER TABLE customers
+  MODIFY COLUMN first_platform ENUM('orderonline','mengantar','shopee') NULL,
+  MODIFY COLUMN last_platform  ENUM('orderonline','mengantar','shopee') NULL;
+```
+
+Tanpa ini, INSERT akan kena `(1265, "Data truncated for column 'source_platform'")`. Endpoint sekarang return JSON error detail (bukan generic 500), jadi gampang didiagnosis.
+
+Karakter unik Shopee yang perlu diperhatikan:
 
 - **Phone customer di-mask** (`******80`) — tidak dipakai untuk match customer. Identifier unique = kolom `Username (Pembeli)`.
 - **`customer_id` Shopee = `shopee:<username>`** (string, bukan format `62...`). Customer Shopee jadi **silos** — tidak di-link otomatis ke customer Mengantar/OrderOnline. Cross-platform matching by name/address bisa di-tambah nanti.

@@ -949,7 +949,43 @@ async def import_shopee(file: UploadFile = File(...), conn=Depends(get_db)):
     - Customer ID = "shopee:<Username (Pembeli)>"
     - Multi-row per order: 1 row per item (groupby No. Pesanan)
     - Status: Selesai/Batal/Sedang Dikirim/Telah Dikirim
+
+    NOTE: Kolom `source_platform` di orders/order_items dan
+    `first_platform`/`last_platform` di customers WAJIB sudah
+    ENUM yang include 'shopee'. Kalau belum, jalankan migration:
+        ALTER TABLE orders MODIFY COLUMN source_platform
+            ENUM('orderonline','mengantar','shopee') NOT NULL;
+        (dan analog untuk order_items, customers.first_platform/last_platform)
     """
+    import traceback as _tb
+    try:
+        return await _import_shopee_impl(file, conn)
+    except Exception as e:
+        tb_str = _tb.format_exc()
+        # Print ke Cloud Run log
+        print(f"[/import/shopee ERROR] {type(e).__name__}: {e}\n{tb_str}", flush=True)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "error_type": type(e).__name__,
+                "error": str(e)[:500],
+                "traceback_tail": [
+                    line for line in tb_str.split("\n")[-20:] if line.strip()
+                ],
+                "hint": (
+                    "Kalau error mention 'Data truncated for source_platform/last_platform/first_platform' → "
+                    "ENUM perlu di-extend dengan 'shopee'. Lihat docstring endpoint."
+                ),
+            },
+        )
+
+
+async def _import_shopee_impl(file, conn):
     contents = await file.read()
     filename = file.filename.lower()
     try:
