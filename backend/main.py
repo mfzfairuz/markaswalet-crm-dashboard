@@ -1137,6 +1137,73 @@ def leads_pipeline_stats(conn=Depends(get_db)):
     return {"data": rows_to_dict(result)}
 
 
+# NOTE: Endpoint dengan path statis WAJIB di-register sebelum /leads/{lead_id}
+# kalau tidak FastAPI akan match string apapun ke {lead_id} dan return 404.
+
+@app.get("/leads/intake-trend")
+def leads_intake_trend(
+    weeks: int = Query(12, ge=1, le=52),
+    conn=Depends(get_db)
+):
+    """
+    Trend intake leads per minggu (untuk chart dashboard).
+    Mingguan = ISO week (Senin-Minggu).
+    """
+    result = conn.execute(text("""
+        SELECT
+            YEARWEEK(created_at, 3) AS yearweek,
+            DATE(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY)) AS week_start,
+            COUNT(*) AS total_leads,
+            SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) AS converted_count
+        FROM leads
+        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL :weeks WEEK)
+        GROUP BY yearweek, week_start
+        ORDER BY week_start ASC
+    """), {"weeks": weeks})
+
+    data = []
+    for row in result:
+        d = dict(zip(result.keys(), row))
+        data.append({
+            "yearweek": str(d["yearweek"]),
+            "week_start": d["week_start"].isoformat() if d["week_start"] else None,
+            "total_leads": int(d["total_leads"] or 0),
+            "converted_count": int(d["converted_count"] or 0),
+        })
+
+    return {"weeks": weeks, "data": data}
+
+
+@app.get("/leads/track-history")
+def leads_track_history(
+    lead_id: Optional[int] = None,
+    source: Optional[str] = None,
+    days: int = Query(7, ge=1, le=90),
+    limit: int = Query(100, ge=1, le=2000),
+    conn=Depends(get_db)
+):
+    """Audit log perpindahan track leads."""
+    where = ["changed_at >= DATE_SUB(NOW(), INTERVAL :days DAY)"]
+    params = {"days": days, "limit": limit}
+    if lead_id:
+        where.append("lead_id = :lead_id")
+        params["lead_id"] = lead_id
+    if source:
+        where.append("source = :source")
+        params["source"] = source
+
+    result = conn.execute(text(f"""
+        SELECT h.id, h.lead_id, l.name, l.phone,
+               h.from_track, h.to_track, h.source, h.changed_at
+        FROM lead_track_history h
+        LEFT JOIN leads l ON h.lead_id = l.id
+        WHERE {' AND '.join(where)}
+        ORDER BY h.changed_at DESC
+        LIMIT :limit
+    """), params)
+
+    return {"data": rows_to_dict(result)}
+
 
 @app.get("/leads/{lead_id}")
 def get_lead(lead_id: str, conn=Depends(get_db)):
@@ -1305,68 +1372,3 @@ async def sync_tracks(conn=Depends(get_db)):
     """Hitung ulang track semua leads. Dipanggil manual / cron."""
     result = _recalc_tracks(conn, source="manual_sync")
     return {"status": "success", **result}
-
-
-@app.get("/leads/intake-trend")
-def leads_intake_trend(
-    weeks: int = Query(12, ge=1, le=52),
-    conn=Depends(get_db)
-):
-    """
-    Trend intake leads per minggu (untuk chart dashboard).
-    Mingguan = ISO week (Senin-Minggu).
-    """
-    result = conn.execute(text("""
-        SELECT
-            YEARWEEK(created_at, 3) AS yearweek,
-            DATE(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY)) AS week_start,
-            COUNT(*) AS total_leads,
-            SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) AS converted_count
-        FROM leads
-        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL :weeks WEEK)
-        GROUP BY yearweek, week_start
-        ORDER BY week_start ASC
-    """), {"weeks": weeks})
-
-    data = []
-    for row in result:
-        d = dict(zip(result.keys(), row))
-        data.append({
-            "yearweek": str(d["yearweek"]),
-            "week_start": d["week_start"].isoformat() if d["week_start"] else None,
-            "total_leads": int(d["total_leads"] or 0),
-            "converted_count": int(d["converted_count"] or 0),
-        })
-
-    return {"weeks": weeks, "data": data}
-
-
-@app.get("/leads/track-history")
-def leads_track_history(
-    lead_id: Optional[int] = None,
-    source: Optional[str] = None,
-    days: int = Query(7, ge=1, le=90),
-    limit: int = Query(100, ge=1, le=2000),
-    conn=Depends(get_db)
-):
-    """Audit log perpindahan track leads."""
-    where = ["changed_at >= DATE_SUB(NOW(), INTERVAL :days DAY)"]
-    params = {"days": days, "limit": limit}
-    if lead_id:
-        where.append("lead_id = :lead_id")
-        params["lead_id"] = lead_id
-    if source:
-        where.append("source = :source")
-        params["source"] = source
-
-    result = conn.execute(text(f"""
-        SELECT h.id, h.lead_id, l.name, l.phone,
-               h.from_track, h.to_track, h.source, h.changed_at
-        FROM lead_track_history h
-        LEFT JOIN leads l ON h.lead_id = l.id
-        WHERE {' AND '.join(where)}
-        ORDER BY h.changed_at DESC
-        LIMIT :limit
-    """), params)
-
-    return {"data": rows_to_dict(result)}
