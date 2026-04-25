@@ -97,6 +97,7 @@ python3 load_data.py # butuh CSV: master_customers_v2.csv, master_orders.csv, dl
 | POST   | `/admin/normalize-mengantar-status` | One-shot migration: normalize raw legacy status di tabel `orders`. Pass `?dry_run=true` untuk preview |
 | POST   | `/import/orderonline`            | Upload data bulanan OrderOnline (Excel)            |
 | POST   | `/import/mengantar`              | Upload data bulanan Mengantar (Excel)              |
+| POST   | `/import/shopee`                 | Upload data Shopee (Excel export Seller Center)    |
 | GET    | `/leads`                         | List leads dengan pipeline status                  |
 | GET    | `/leads/pipeline-stats`          | Stats per pipeline stage                           |
 | GET    | `/leads/intake-trend`            | Trend intake leads mingguan (chart dashboard)      |
@@ -156,6 +157,17 @@ Endpoint `/import/orderonline` dan `/import/mengantar` menerima upload Excel bul
 Re-upload file Mengantar dengan `order_id` yang sama akan **update status** di DB (tidak skip), supaya order yang awalnya `processing_unpaid` flip ke `completed` setelah barang sampai. Customer stats (total_orders, revenue, segment) dan kolom `track` di leads ikut di-recompute via `_recalc_tracks()`.
 
 Untuk normalize data legacy (status raw seperti "delivery return", "rts in progress" yang masuk via `load_data.py`/`run.py`), ada endpoint sekali pakai `/admin/normalize-mengantar-status?dry_run=true|false`.
+
+### Shopee Import
+Endpoint `/import/shopee` (`backend/main.py`) menerima file export Seller Center (49 kolom Bahasa Indonesia, sheet `orders`). Karakter unik yang perlu diperhatikan:
+
+- **Phone customer di-mask** (`******80`) — tidak dipakai untuk match customer. Identifier unique = kolom `Username (Pembeli)`.
+- **`customer_id` Shopee = `shopee:<username>`** (string, bukan format `62...`). Customer Shopee jadi **silos** — tidak di-link otomatis ke customer Mengantar/OrderOnline. Cross-platform matching by name/address bisa di-tambah nanti.
+- **Multi-row per order** (1 row per item): handler group by `No. Pesanan`, parent `orders` row pakai SUM untuk `net_revenue` dan `total_qty`, lalu insert 1 row ke `order_items` per item.
+- **Status mapping**: "Selesai" → completed, "Batal" → cancelled, "Sedang/Telah Dikirim" → processing_unpaid, "Return"/"Refund" → rts.
+- **`net_revenue`** = `SUM(Total Harga Produk - Diskon Dari Penjual - Voucher Ditanggung Penjual - Paket Diskon Penjual)`. Komisi Shopee tidak ada di kolom export (di laporan keuangan terpisah).
+- **Re-upload**: sama seperti Mengantar, status update otomatis kalau berbeda, customer stats di-recalc.
+- **Auto-sync leads track**: tidak dijalankan untuk Shopee karena `customer_id` format-nya berbeda (tidak match phone leads). Itu intentional.
 
 ### Script Utilitas Data
 - `load_data.py` — **destruktif** (insert ke tabel kosong), hanya untuk initial setup

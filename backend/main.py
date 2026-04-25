@@ -938,6 +938,265 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
 
 
 
+@app.post("/import/shopee")
+async def import_shopee(file: UploadFile = File(...), conn=Depends(get_db)):
+    """
+    Import file order Shopee (.xlsx export dari Seller Center).
+
+    Karakter unik Shopee:
+    - 49 kolom standar Bahasa Indonesia
+    - Phone customer di-mask (******XX) — TIDAK dipakai untuk match
+    - Customer ID = "shopee:<Username (Pembeli)>"
+    - Multi-row per order: 1 row per item (groupby No. Pesanan)
+    - Status: Selesai/Batal/Sedang Dikirim/Telah Dikirim
+    """
+    contents = await file.read()
+    filename = file.filename.lower()
+    try:
+        if filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(contents), dtype=str)
+        else:
+            df = pd.read_excel(io.BytesIO(contents), dtype=str)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal baca file: {str(e)}")
+
+    df = df.fillna("")
+
+    required = ['No. Pesanan', 'Status Pesanan', 'Username (Pembeli)', 'Total Harga Produk', 'Waktu Pesanan Dibuat']
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Kolom wajib tidak ada: {missing}")
+
+    def clean(val):
+        s = str(val).strip().lstrip("'")
+        return None if s in ("", "nan", "NaN", "None") else s
+
+    def num(val, default=0):
+        try:
+            v = pd.to_numeric(str(val).replace(",", "").strip(), errors="coerce")
+            return float(v) if pd.notna(v) else default
+        except:
+            return default
+
+    def parse_dt(val):
+        if not val: return None
+        try:
+            dt = pd.to_datetime(str(val), errors="coerce")
+            return dt.to_pydatetime() if pd.notna(dt) else None
+        except:
+            return None
+
+    def map_status_shopee(val):
+        s = str(val).upper().strip()
+        if "SELESAI" in s: return "completed"
+        if "BATAL" in s or "CANCEL" in s: return "cancelled"
+        if "RETURN" in s or "REFUND" in s or "PENGEMBALIAN" in s: return "rts"
+        if "DIKIRIM" in s or "KEMAS" in s or "PROSES" in s: return "processing_unpaid"
+        return "processing_unpaid"
+
+    def parse_courier(opsi):
+        if not opsi: return None
+        s = str(opsi).upper()
+        if "J&T" in s or "JNT" in s or "J & T" in s: return "J&T"
+        if "SICEPAT" in s: return "SiCepat"
+        if "SPX" in s: return "SPX"
+        if "ANTERAJA" in s: return "Anteraja"
+        if "JNE" in s: return "JNE"
+        if "ID EXPRESS" in s or "IDEXPRESS" in s: return "ID Express"
+        if "LION" in s: return "Lion Parcel"
+        if "NINJA" in s: return "Ninja"
+        if "POS INDONESIA" in s or "POS REGULER" in s: return "POS"
+        return str(opsi).split("-")[-1].strip()
+
+    # Load existing customers (untuk match by username)
+    cust_rows = conn.execute(text(
+        "SELECT customer_id, name FROM customers WHERE customer_id LIKE 'shopee:%'"
+    )).fetchall()
+    cust_map = {r[0]: r[1] for r in cust_rows}
+
+    # Load existing orders dengan status
+    existing_orders = {r[0]: r[1] for r in conn.execute(
+        text("SELECT order_id, order_status FROM orders WHERE source_platform='shopee'")
+    ).fetchall()}
+
+    # Group by No. Pesanan supaya multi-row (multi-item) jadi 1 order
+    grouped = df.groupby('No. Pesanan', sort=False)
+
+    inserted = 0
+    status_updated = 0
+    skipped = 0
+    touched_customers = set()
+    status_changes = {}
+
+    for order_id, group in grouped:
+        order_id = clean(order_id)
+        if not order_id: continue
+
+        first = group.iloc[0]
+        username = clean(first.get('Username (Pembeli)'))
+        if not username:
+            continue
+        customer_id = f"shopee:{username}"
+
+        new_status = map_status_shopee(first.get('Status Pesanan'))
+        order_date = parse_dt(first.get('Waktu Pesanan Dibuat'))
+        receipt = clean(first.get('No. Resi'))
+        courier = parse_courier(first.get('Opsi Pengiriman'))
+        payment = clean(first.get('Metode Pembayaran')) or 'Online Payment'
+        if 'COD' in (payment or '').upper():
+            payment = 'COD'
+
+        receiver_name = clean(first.get('Nama Penerima')) or username
+        city = clean(first.get('Kota/Kabupaten'))
+        province = clean(first.get('Provinsi'))
+
+        # Net revenue = SUM(Total Harga Produk - Diskon Penjual - Voucher Penjual - Paket Diskon Penjual)
+        net_revenue = 0.0
+        total_qty = 0
+        for _, row in group.iterrows():
+            line = num(row.get('Total Harga Produk'))
+            line -= num(row.get('Diskon Dari Penjual'))
+            line -= num(row.get('Voucher Ditanggung Penjual'))
+            line -= num(row.get('Paket Diskon (Diskon dari Penjual)'))
+            net_revenue += max(line, 0)  # safety
+            total_qty += int(num(row.get('Jumlah'), 1))
+
+        shipping_paid = num(first.get('Ongkos Kirim Dibayar oleh Pembeli'))
+
+        # Customer: insert kalau belum ada
+        if customer_id not in cust_map:
+            conn.execute(text("""
+                INSERT IGNORE INTO customers
+                (customer_id, phone_raw, name, city, province, segment,
+                 total_orders, total_revenue, avg_order_value,
+                 first_order_date, last_order_date, last_platform)
+                VALUES (:cid, NULL, :name, :city, :province, 'New',
+                 0, 0, 0, :dt, :dt, 'shopee')
+            """), {"cid": customer_id, "name": receiver_name,
+                   "city": city, "province": province, "dt": order_date})
+            cust_map[customer_id] = receiver_name
+
+        touched_customers.add(customer_id)
+
+        # Order: update kalau sudah ada (status berubah), insert kalau baru
+        if order_id in existing_orders:
+            old_status = existing_orders[order_id]
+            if old_status == new_status:
+                skipped += 1
+                continue
+            conn.execute(text("""
+                UPDATE orders SET
+                    order_status = :status,
+                    payment_method = :payment,
+                    shipping_provider = :courier,
+                    receipt_number = :receipt,
+                    net_revenue = :rev,
+                    shipping_cost = :ship,
+                    total_qty = :qty
+                WHERE order_id = :oid AND source_platform = 'shopee'
+            """), {"oid": order_id, "status": new_status, "payment": payment,
+                   "courier": courier, "receipt": receipt,
+                   "rev": net_revenue, "ship": shipping_paid, "qty": total_qty})
+            existing_orders[order_id] = new_status
+            status_updated += 1
+            key = (old_status, new_status)
+            status_changes[key] = status_changes.get(key, 0) + 1
+            continue
+
+        # Insert order baru
+        conn.execute(text("""
+            INSERT INTO orders (order_id, source_platform, customer_id, customer_name,
+                order_date, order_status, payment_method, shipping_provider,
+                receipt_number, net_revenue, shipping_cost, seller_shipping_discount, total_qty)
+            VALUES (:oid, 'shopee', :cid, :cname,
+                :dt, :status, :payment, :courier,
+                :receipt, :rev, :ship, 0, :qty)
+        """), {"oid": order_id, "cid": customer_id, "cname": receiver_name,
+               "dt": order_date, "status": new_status, "payment": payment,
+               "courier": courier, "receipt": receipt,
+               "rev": net_revenue, "ship": shipping_paid, "qty": total_qty})
+
+        # Insert order_items per row dalam group
+        for idx, row in group.iterrows():
+            prod_name = clean(row.get('Nama Produk')) or 'Unknown'
+            variant = clean(row.get('Nama Variasi'))
+            sku_induk = clean(row.get('SKU Induk'))
+            sku_ref = clean(row.get('Nomor Referensi SKU'))
+            line_qty = int(num(row.get('Jumlah'), 1))
+            full_name = f"{prod_name}" + (f" — {variant}" if variant else "")
+            conn.execute(text("""
+                INSERT INTO order_items
+                (order_id, source_platform, product_id, product_raw, product_name, qty_item)
+                VALUES (:oid, 'shopee', :pid, :praw, :pname, :qty)
+            """), {"oid": order_id, "pid": sku_induk or sku_ref,
+                   "praw": prod_name, "pname": full_name, "qty": line_qty})
+
+        existing_orders[order_id] = new_status
+        inserted += 1
+
+    # Recalc customer stats untuk Shopee customers yang ter-touch
+    if touched_customers:
+        ids = list(touched_customers)
+        from sqlalchemy import bindparam
+        recalc_stmt = text("""
+            UPDATE customers c SET
+                total_orders = (SELECT COUNT(*) FROM orders
+                                WHERE customer_id = c.customer_id AND order_status = 'completed'),
+                total_revenue = (SELECT COALESCE(SUM(net_revenue), 0) FROM orders
+                                 WHERE customer_id = c.customer_id AND order_status = 'completed'),
+                last_order_date = (SELECT MAX(order_date) FROM orders
+                                   WHERE customer_id = c.customer_id),
+                first_order_date = COALESCE(c.first_order_date,
+                    (SELECT MIN(order_date) FROM orders WHERE customer_id = c.customer_id)),
+                avg_order_value = CASE
+                    WHEN (SELECT COUNT(*) FROM orders
+                          WHERE customer_id = c.customer_id AND order_status = 'completed') > 0
+                    THEN (SELECT COALESCE(SUM(net_revenue), 0) FROM orders
+                          WHERE customer_id = c.customer_id AND order_status = 'completed')
+                       / (SELECT COUNT(*) FROM orders
+                          WHERE customer_id = c.customer_id AND order_status = 'completed')
+                    ELSE 0
+                END,
+                last_platform = (SELECT source_platform FROM orders
+                                 WHERE customer_id = c.customer_id
+                                 ORDER BY order_date DESC LIMIT 1)
+            WHERE c.customer_id IN :ids
+        """).bindparams(bindparam('ids', expanding=True))
+        conn.execute(recalc_stmt, {"ids": ids})
+
+        seg_stmt = text("""
+            UPDATE customers SET segment =
+                CASE
+                    WHEN total_orders >= 4 THEN 'Loyal'
+                    WHEN total_orders >= 2 THEN 'Returning'
+                    WHEN total_orders = 1 AND DATEDIFF(NOW(), last_order_date) <= 90 THEN 'New'
+                    ELSE 'Churn'
+                END
+            WHERE customer_id IN :ids
+        """).bindparams(bindparam('ids', expanding=True))
+        conn.execute(seg_stmt, {"ids": ids})
+
+    conn.commit()
+
+    # NOTE: Shopee customer pakai customer_id "shopee:..." yang tidak ada di
+    # leads.phone, jadi _recalc_tracks() tidak akan mengaitkan pembelian
+    # Shopee dengan leads. Itu intentional — Shopee customer silos.
+
+    return {
+        "status": "success",
+        "filename": file.filename,
+        "inserted": inserted,
+        "status_updated": status_updated,
+        "skipped_duplicate": skipped,
+        "customers_touched": len(touched_customers),
+        "status_changes": [
+            {"from": k[0], "to": k[1], "count": v}
+            for k, v in sorted(status_changes.items(), key=lambda x: -x[1])
+        ],
+    }
+
+
+
 # ─────────────────────────────────────────
 # LEADS
 # ─────────────────────────────────────────

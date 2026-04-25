@@ -596,7 +596,7 @@ tr:hover td { background: var(--bg3); color: var(--text); }
     <div class="page" id="page-import">
       <div class="topbar"><div class="topbar-title">Import Data Bulanan</div></div>
       <div style="padding:24px">
-        <div class="grid-2">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
           <div class="card">
             <div class="card-header"><div class="card-title">📋 OrderOnline</div></div>
             <div class="card-body">
@@ -625,13 +625,28 @@ tr:hover td { background: var(--bg3); color: var(--text); }
               <div id="menStatus" style="margin-top:10px;font-size:13px"></div>
             </div>
           </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">🛒 Shopee</div></div>
+            <div class="card-body">
+              <div class="import-area" id="shpDropzone"
+                ondragover="handleDrag(event,'shp')" ondragleave="handleDragLeave(event,'shp')"
+                ondrop="handleDrop(event,'shopee')" onclick="document.getElementById('shpFile').click()">
+                <div class="import-icon">📄</div>
+                <div class="import-title">Upload File Shopee</div>
+                <div class="import-sub">Export dari Seller Center<br><small style="color:var(--text3)">.xlsx / .xls / .csv</small></div>
+              </div>
+              <input type="file" id="shpFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileSelect(this,'shopee')">
+              <div id="shpStatus" style="margin-top:10px;font-size:13px"></div>
+            </div>
+          </div>
         </div>
-        <div class="card">
+        <div class="card" style="margin-top:14px">
           <div class="card-header"><div class="card-title">Panduan Import</div></div>
           <div class="card-body" style="color:var(--text2);font-size:13.5px;line-height:2.2">
-            <p>✅ Upload file export bulanan dari OrderOnline atau Mengantar</p>
-            <p>✅ Sistem otomatis melakukan preprocessing & standardisasi</p>
-            <p>✅ Data baru langsung masuk ke database</p>
+            <p>✅ Upload file export bulanan dari OrderOnline, Mengantar, atau Shopee</p>
+            <p>✅ Sistem otomatis melakukan preprocessing & standardisasi status</p>
+            <p>✅ Re-upload file yang sama akan update status order (mis. processing → completed)</p>
+            <p>ℹ️ Shopee customer pakai customer_id <code>shopee:&lt;username&gt;</code> karena nomor HP di-mask</p>
             <p>⚠️ Pastikan file adalah export asli dari platform — jangan diedit manual</p>
           </div>
         </div>
@@ -1339,9 +1354,12 @@ async function openCustomer(id) {
 function closeModal(e) { if(e.target===document.getElementById('customerModal'))closeModalDirect(); }
 function closeModalDirect() { document.getElementById('customerModal').classList.remove('open'); }
 
-function handleDrag(e,type){e.preventDefault();document.getElementById(type==='oo'?'ooDropzone':'menDropzone').classList.add('dragover');}
-function handleDragLeave(e,type){document.getElementById(type==='oo'?'ooDropzone':'menDropzone').classList.remove('dragover');}
-function handleDrop(e,platform){e.preventDefault();const id=platform==='orderonline'?'oo':'men';document.getElementById(id+'Dropzone').classList.remove('dragover');const file=e.dataTransfer.files[0];if(file)uploadFile(file,platform);}
+const PLATFORM_PREFIX = {orderonline:'oo', mengantar:'men', shopee:'shp'};
+const DROPZONE_PREFIX = {oo:'oo', men:'men', shp:'shp'};
+
+function handleDrag(e,type){e.preventDefault();document.getElementById(DROPZONE_PREFIX[type]+'Dropzone').classList.add('dragover');}
+function handleDragLeave(e,type){document.getElementById(DROPZONE_PREFIX[type]+'Dropzone').classList.remove('dragover');}
+function handleDrop(e,platform){e.preventDefault();const id=PLATFORM_PREFIX[platform]||'oo';document.getElementById(id+'Dropzone').classList.remove('dragover');const file=e.dataTransfer.files[0];if(file)uploadFile(file,platform);}
 function handleFileSelect(input,platform){if(input.files[0])uploadFile(input.files[0],platform);}
 
 function showTrackRecalcToasts(sync) {
@@ -1363,24 +1381,26 @@ function showStatusChangeToasts(changes) {
 }
 
 async function uploadFile(file,platform) {
-  const statusEl=document.getElementById(platform==='orderonline'?'ooStatus':'menStatus');
-  statusEl.innerHTML=`<div class="loading" style="padding:8px 0"><div class="spinner"></div> Mengupload...</div>`;
-  const fd=new FormData(); fd.append('file',file);
+  const prefix = PLATFORM_PREFIX[platform] || 'oo';
+  const statusEl = document.getElementById(prefix + 'Status');
+  statusEl.innerHTML = `<div class="loading" style="padding:8px 0"><div class="spinner"></div> Mengupload...</div>`;
+  const fd = new FormData(); fd.append('file', file);
   try {
-    const r=await fetch(`${API}/import/${platform}`,{method:'POST',body:fd});
-    const d=await r.json();
+    const r = await fetch(`${API}/import/${platform}`, {method:'POST', body:fd});
+    const d = await r.json();
     const parts = [];
     parts.push(`${d.inserted||0} baru`);
     if (d.status_updated) parts.push(`${d.status_updated} status update`);
     parts.push(`${d.skipped_duplicate||0} skip`);
     if (d.leads_synced) parts.push(`${d.leads_synced} leads converted`);
-    statusEl.innerHTML=`<span style="color:var(--success)">✅ ${d.filename||'File'} — ${parts.join(', ')}</span>`;
-    toast(`Upload selesai: ${parts.join(' · ')}`,'success');
+    if (d.customers_touched) parts.push(`${d.customers_touched} cust update`);
+    statusEl.innerHTML = `<span style="color:var(--success)">✅ ${d.filename||'File'} — ${parts.join(', ')}</span>`;
+    toast(`Upload selesai: ${parts.join(' · ')}`, 'success');
     showStatusChangeToasts(d.status_changes);
     showTrackRecalcToasts(d.tracks_recalc);
   } catch {
-    statusEl.innerHTML=`<span style="color:var(--danger)">❌ Gagal upload</span>`;
-    toast('Upload gagal','error');
+    statusEl.innerHTML = `<span style="color:var(--danger)">❌ Gagal upload</span>`;
+    toast('Upload gagal', 'error');
   }
 }
 
