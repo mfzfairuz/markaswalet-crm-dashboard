@@ -247,6 +247,7 @@ tr:hover td { background: var(--bg3); color: var(--text); }
       <a class="nav-item active" onclick="showPage('dashboard')" href="#"><span class="nav-icon">📊</span> Dashboard</a>
       <a class="nav-item" onclick="showPage('customers')" href="#"><span class="nav-icon">👥</span> Customers</a>
       <a class="nav-item" onclick="showPage('orders')" href="#"><span class="nav-icon">📦</span> Orders</a>
+      <a class="nav-item" onclick="showPage('delivery')" href="#"><span class="nav-icon">🚚</span> Delivery Monitor</a>
       <a class="nav-item" onclick="showPage('rfm')" href="#"><span class="nav-icon">🎖️</span> RFM Segmentasi</a>
       <div class="nav-label">Data</div>
       <a class="nav-item" onclick="showPage('leads')" href="#"><span class="nav-icon">🎯</span> Leads</a>
@@ -434,6 +435,98 @@ tr:hover td { background: var(--bg3); color: var(--text); }
             </table>
           </div>
           <div class="pagination" id="ordersPagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DELIVERY MONITOR -->
+    <div class="page" id="page-delivery">
+      <div class="topbar">
+        <div class="topbar-title">Delivery Monitor — Mengantar</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <select id="deliveryRange" onchange="loadDeliveryMonitor()" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;outline:none">
+            <option value="3">3 bulan</option>
+            <option value="6" selected>6 bulan</option>
+            <option value="12">12 bulan</option>
+            <option value="24">24 bulan</option>
+          </select>
+        </div>
+      </div>
+      <div style="padding:24px">
+        <!-- KPI CARDS -->
+        <div class="stats-grid" id="deliveryKpi">
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+          <div class="stat-card"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+
+        <!-- MONTHLY TREND -->
+        <div class="card" style="margin-top:14px">
+          <div class="card-header">
+            <div class="card-title">Status Distribution per Bulan</div>
+            <div style="display:flex;gap:12px;font-size:11px;color:var(--text3)">
+              <span><span style="display:inline-block;width:10px;height:10px;background:#2A9D6F;border-radius:2px;margin-right:4px"></span>Completed</span>
+              <span><span style="display:inline-block;width:10px;height:10px;background:#D64C4C;border-radius:2px;margin-right:4px"></span>RTS</span>
+              <span><span style="display:inline-block;width:10px;height:10px;background:#E8A020;border-radius:2px;margin-right:4px"></span>In-flight</span>
+              <span><span style="display:inline-block;width:10px;height:10px;background:#8D99AE;border-radius:2px;margin-right:4px"></span>Cancelled</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="deliveryMonthlyChart" style="display:flex;align-items:flex-end;gap:8px;height:200px;padding:10px 4px 0">
+              <div class="loading" style="width:100%"><div class="spinner"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PER COURIER + PER PROVINCE -->
+        <div class="grid-2" style="margin-top:14px">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Per Kurir</div></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Kurir</th><th>Total</th><th>Completed</th><th>RTS</th><th>RTS Rate</th></tr></thead>
+                <tbody id="deliveryPerCourier"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Top 10 Provinsi (RTS Tertinggi)</div></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Provinsi</th><th>Total</th><th>RTS</th><th>RTS Rate</th><th>Loss</th></tr></thead>
+                <tbody id="deliveryPerProvince"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- REPEAT-RTS CUSTOMERS + IN-FLIGHT STUCK -->
+        <div class="grid-2" style="margin-top:14px">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Customer Sering RTS (≥2x)</div>
+              <span style="font-size:11px;color:var(--text3)">Potensi nomor palsu / fraud</span>
+            </div>
+            <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+              <table>
+                <thead><tr><th>Customer</th><th>Total</th><th>RTS</th><th>Rate</th><th>Loss</th></tr></thead>
+                <tbody id="deliveryRepeatRts"><tr><td colspan="5"><div class="loading"><div class="spinner"></div></div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">In-flight &gt; 7 Hari (Nyangkut?)</div>
+              <span style="font-size:11px;color:var(--text3)" id="deliveryInflightCount"></span>
+            </div>
+            <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+              <table>
+                <thead><tr><th>Order</th><th>Tanggal</th><th>Customer</th><th>Kurir</th><th>Hari</th><th>Nilai</th></tr></thead>
+                <tbody id="deliveryInflight"><tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -924,6 +1017,7 @@ function showPage(name) {
   });
   if (name === 'customers' && !document.getElementById('custTable').dataset.loaded) loadCustomers();
   if (name === 'orders' && !document.getElementById('ordersTable').dataset.loaded) loadOrders();
+  if (name === 'delivery' && !document.getElementById('deliveryKpi').dataset.loaded) loadDeliveryMonitor();
   if (name === 'rfm' && !document.getElementById('rfmTable').dataset.loaded) { loadRfmSummary(); loadRfmCustomers(); }
   if (name === 'leads') { loadLeads(); loadLeadsPipelineStats(); }
   if (name === 'export') {
@@ -1960,6 +2054,179 @@ async function exportRfmCsv() {
     toast(`Export ${d.data.length} customer berhasil`, 'success');
   } catch (e) {
     toast('Gagal export CSV', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// DELIVERY MONITOR
+// ═══════════════════════════════════════════════════════════
+
+const STATUS_COLORS = {
+  completed:         '#2A9D6F',
+  rts:               '#D64C4C',
+  processing_unpaid: '#E8A020',
+  cancelled:         '#8D99AE',
+};
+
+async function loadDeliveryMonitor() {
+  const months = parseInt(document.getElementById('deliveryRange')?.value || '6');
+  document.getElementById('deliveryKpi').dataset.loaded = '1';
+  try {
+    const d = await fetch(`${API}/analytics/delivery-monitor?months=${months}`).then(r => r.json());
+
+    // KPI cards
+    const s = d.summary || {};
+    const tm = d.this_month || {};
+    const lm = d.last_month || {};
+    const trendArrow = (tm.rts_rate || 0) > (lm.rts_rate || 0) ? '🔺' : ((tm.rts_rate || 0) < (lm.rts_rate || 0) ? '🔻' : '→');
+    const trendColor = (tm.rts_rate || 0) > (lm.rts_rate || 0) ? 'var(--danger)' : 'var(--success)';
+
+    document.getElementById('deliveryKpi').innerHTML = `
+      <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-value">${(s.total_orders || 0).toLocaleString('id-ID')}</div>
+        <div class="stat-label">Total Order (${months} bln)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value">${s.completed_rate || 0}%</div>
+        <div class="stat-label">Completion Rate · ${(s.completed || 0).toLocaleString('id-ID')} order</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid var(--danger)">
+        <div class="stat-icon">🔄</div>
+        <div class="stat-value">${s.rts_rate || 0}%</div>
+        <div class="stat-label">RTS Rate · ${(s.rts || 0).toLocaleString('id-ID')} order
+          <span style="color:${trendColor};font-weight:700;margin-left:6px">${trendArrow} ${tm.rts_rate || 0}% vs ${lm.rts_rate || 0}%</span>
+        </div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid var(--accent)">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-value">${(s.in_flight || 0).toLocaleString('id-ID')}</div>
+        <div class="stat-label">In-flight · ${fmt(s.in_flight_revenue || 0)} stuck</div>
+      </div>
+    `;
+
+    // Monthly stacked chart
+    const monthly = d.monthly || [];
+    const monthMap = {};
+    monthly.forEach(r => {
+      if (!monthMap[r.month]) monthMap[r.month] = {};
+      monthMap[r.month][r.order_status] = r.orders;
+    });
+    const months_sorted = Object.keys(monthMap).sort();
+    const maxTotal = Math.max(1, ...months_sorted.map(m =>
+      Object.values(monthMap[m]).reduce((a, b) => a + (b || 0), 0)
+    ));
+
+    const chartEl = document.getElementById('deliveryMonthlyChart');
+    if (months_sorted.length === 0) {
+      chartEl.innerHTML = '<div style="text-align:center;color:var(--text3);width:100%;padding:30px">Belum ada data</div>';
+    } else {
+      chartEl.innerHTML = months_sorted.map(m => {
+        const data = monthMap[m];
+        const total = Object.values(data).reduce((a, b) => a + (b || 0), 0);
+        const pct = Math.max(4, (total / maxTotal) * 170);
+        const order = ['completed', 'rts', 'processing_unpaid', 'cancelled'];
+        const segments = order.map(st => {
+          const v = data[st] || 0;
+          if (v === 0) return '';
+          const flex = v / total * pct;
+          return `<div style="flex:${flex};background:${STATUS_COLORS[st]};min-height:1px" title="${st}: ${v}"></div>`;
+        }).join('');
+        return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+            <div style="font-size:10px;color:var(--text2);font-weight:600">${total}</div>
+            <div title="${m}: ${total} order"
+                 style="display:flex;flex-direction:column-reverse;width:100%;height:${pct}px;border-radius:4px 4px 0 0;overflow:hidden;background:var(--bg3)">
+              ${segments}
+            </div>
+            <div style="font-size:9px;color:var(--text3)">${m.slice(5)}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // Per courier table
+    const cBody = document.getElementById('deliveryPerCourier');
+    if (!d.per_courier || d.per_courier.length === 0) {
+      cBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Tidak ada data</td></tr>';
+    } else {
+      cBody.innerHTML = d.per_courier.map(c => {
+        const rateColor = c.rts_rate >= 15 ? 'var(--danger)' : c.rts_rate >= 8 ? 'var(--accent)' : 'var(--success)';
+        return `
+          <tr>
+            <td style="font-weight:600">${c.courier}</td>
+            <td>${c.total_orders.toLocaleString('id-ID')}</td>
+            <td>${c.completed.toLocaleString('id-ID')}</td>
+            <td>${c.rts.toLocaleString('id-ID')}</td>
+            <td><span style="color:${rateColor};font-weight:700">${c.rts_rate}%</span></td>
+          </tr>`;
+      }).join('');
+    }
+
+    // Per province
+    const pBody = document.getElementById('deliveryPerProvince');
+    if (!d.per_province || d.per_province.length === 0) {
+      pBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Tidak ada data</td></tr>';
+    } else {
+      pBody.innerHTML = d.per_province.map(p => {
+        const rateColor = p.rts_rate >= 15 ? 'var(--danger)' : p.rts_rate >= 8 ? 'var(--accent)' : 'var(--success)';
+        return `
+          <tr>
+            <td style="font-weight:600">${p.province}</td>
+            <td>${p.total_orders.toLocaleString('id-ID')}</td>
+            <td>${p.rts.toLocaleString('id-ID')}</td>
+            <td><span style="color:${rateColor};font-weight:700">${p.rts_rate}%</span></td>
+            <td style="color:var(--text3)">${fmt(p.revenue_rts)}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    // Repeat RTS customers
+    const rBody = document.getElementById('deliveryRepeatRts');
+    if (!d.repeat_rts || d.repeat_rts.length === 0) {
+      rBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">Tidak ada customer dengan RTS ≥ 2</td></tr>';
+    } else {
+      rBody.innerHTML = d.repeat_rts.map(r => `
+        <tr style="cursor:pointer" onclick="openCustomer('${r.customer_id}')">
+          <td>
+            <div style="font-weight:600">${r.customer_name || '-'}</div>
+            <div style="font-size:10px;color:var(--text3)">${r.customer_id}</div>
+          </td>
+          <td>${r.total_orders}</td>
+          <td><span style="color:var(--danger);font-weight:700">${r.rts_count}</span></td>
+          <td>${r.rts_rate}%</td>
+          <td style="color:var(--text3)">${fmt(r.rts_value)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // In-flight stuck
+    const iBody = document.getElementById('deliveryInflight');
+    document.getElementById('deliveryInflightCount').textContent =
+      `${(d.inflight_stuck || []).length} order`;
+    if (!d.inflight_stuck || d.inflight_stuck.length === 0) {
+      iBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--success);padding:20px">✅ Tidak ada order nyangkut &gt;7 hari</td></tr>';
+    } else {
+      iBody.innerHTML = d.inflight_stuck.map(o => {
+        const daysColor = o.days_pending >= 14 ? 'var(--danger)' : 'var(--accent)';
+        return `
+          <tr style="cursor:pointer" onclick="openCustomer('${o.customer_id}')">
+            <td style="font-size:11px;font-family:monospace">${o.order_id}</td>
+            <td style="font-size:11px">${fmtDate(o.order_date)}</td>
+            <td>
+              <div style="font-weight:600">${o.customer_name || '-'}</div>
+              <div style="font-size:10px;color:var(--text3)">${[o.city, o.province].filter(Boolean).join(', ')}</div>
+            </td>
+            <td style="font-size:11px">${o.shipping_provider || '-'}</td>
+            <td><span style="color:${daysColor};font-weight:700">${o.days_pending}h</span></td>
+            <td style="font-size:11px">${fmt(o.net_revenue)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  } catch (e) {
+    document.getElementById('deliveryKpi').innerHTML =
+      '<div class="stat-card" style="grid-column:1/-1"><div style="color:var(--danger);text-align:center;padding:20px">Gagal memuat delivery monitor</div></div>';
   }
 }
 

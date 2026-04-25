@@ -718,10 +718,26 @@ async def import_mengantar(file: UploadFile = File(...), conn=Depends(get_db)):
             return None
 
     def map_status(val):
+        """Map status raw Mengantar ke kategori standar.
+
+        Kategori:
+          completed         - barang sampai & terkonfirmasi (DELIVERED, kecuali UNDELIVERED)
+          cancelled         - order dibatalkan sebelum dikirim
+          rts               - return to sender / undelivered / rejected / irregularity
+          processing_unpaid - in transit / pending payment / belum ada keputusan akhir
+        """
         s = str(val).upper().strip()
-        if "DELIVERED" in s and "UN" not in s: return "completed"
-        if s in ("RTS", "CANCELLED", "UNDELIVERED"): return "rts"
-        if "CANCEL" in s: return "cancelled"
+
+        if "DELIVERED" in s and "UNDELIVERED" not in s:
+            return "completed"
+        if "CANCEL" in s:
+            return "cancelled"
+        if ("RTS" in s
+                or "RETURN" in s
+                or s == "UNDELIVERED"
+                or s == "REJECTED"
+                or s == "IRREGULARITY"):
+            return "rts"
         return "processing_unpaid"
 
     def norm_courier(val):
@@ -1372,3 +1388,259 @@ async def sync_tracks(conn=Depends(get_db)):
     """Hitung ulang track semua leads. Dipanggil manual / cron."""
     result = _recalc_tracks(conn, source="manual_sync")
     return {"status": "success", **result}
+
+
+# ════════════════════════════════════════════════════════════════════
+# DELIVERY MONITOR (Mengantar)
+# ════════════════════════════════════════════════════════════════════
+
+# Map status raw legacy → kategori standar (untuk endpoint normalize).
+# Sama dengan logika map_status() di import_mengantar; di-duplikasi di sini
+# karena map_status di-define di dalam fungsi import.
+LEGACY_STATUS_MAP = {
+    "DELIVERED(PENDING)": "completed",
+    "RTS IN PROGRESS":    "rts",
+    "DELIVERY RETURN":    "rts",
+    "SHIPMENT RETURN":    "rts",
+    "RETURN ORIGIN":      "rts",
+    "UNDELIVERED":        "rts",
+    "REJECTED":           "rts",
+    "IRREGULARITY":       "rts",
+    "OUTGOING":           "processing_unpaid",
+    "INBOUND PROCESS":    "processing_unpaid",
+}
+
+
+@app.post("/admin/normalize-mengantar-status")
+async def normalize_mengantar_status(dry_run: bool = Query(False), conn=Depends(get_db)):
+    """
+    Normalize order_status raw legacy ke kategori standar.
+    Aman dijalankan berkali-kali (idempotent — hanya update yang belum standar).
+    Pass ?dry_run=true untuk lihat preview tanpa eksekusi.
+    """
+    # Cek semua status raw saat ini
+    rows = conn.execute(text("""
+        SELECT order_status, COUNT(*) AS total
+        FROM orders
+        WHERE source_platform = 'mengantar'
+        GROUP BY order_status
+    """)).fetchall()
+
+    standard = {"completed", "cancelled", "rts", "processing_unpaid"}
+    plan = []
+    for status, count in rows:
+        if status in standard:
+            continue
+        upper = str(status).upper().strip()
+        target = LEGACY_STATUS_MAP.get(upper)
+        if not target:
+            # Fallback: try generic rules
+            if "DELIVERED" in upper and "UNDELIVERED" not in upper:
+                target = "completed"
+            elif "CANCEL" in upper:
+                target = "cancelled"
+            elif "RTS" in upper or "RETURN" in upper or upper == "UNDELIVERED":
+                target = "rts"
+            else:
+                target = None  # unknown — skip
+        if target:
+            plan.append({"from": status, "to": target, "count": int(count)})
+
+    if dry_run:
+        return {"dry_run": True, "plan": plan}
+
+    total_updated = 0
+    for item in plan:
+        result = conn.execute(text("""
+            UPDATE orders SET order_status = :to_status
+            WHERE source_platform = 'mengantar' AND order_status = :from_status
+        """), {"to_status": item["to"], "from_status": item["from"]})
+        item["updated"] = result.rowcount
+        total_updated += result.rowcount
+
+    conn.commit()
+    return {"dry_run": False, "total_updated": total_updated, "plan": plan}
+
+
+@app.get("/analytics/delivery-monitor")
+def delivery_monitor(
+    months: int = Query(6, ge=1, le=24),
+    conn=Depends(get_db)
+):
+    """Comprehensive delivery health stats untuk Mengantar."""
+    cutoff_clause = f"o.order_date >= DATE_SUB(CURDATE(), INTERVAL {months} MONTH)"
+
+    # 1. Status distribution overall
+    overall = conn.execute(text(f"""
+        SELECT
+            order_status,
+            COUNT(*) AS orders,
+            COALESCE(SUM(net_revenue), 0) AS revenue
+        FROM orders o
+        WHERE o.source_platform = 'mengantar'
+          AND {cutoff_clause}
+        GROUP BY order_status
+        ORDER BY orders DESC
+    """))
+    status_distribution = rows_to_dict(overall)
+
+    total_orders = sum(r["orders"] for r in status_distribution)
+    completed_orders = sum(r["orders"] for r in status_distribution if r["order_status"] == "completed")
+    rts_orders = sum(r["orders"] for r in status_distribution if r["order_status"] == "rts")
+    inflight_orders = sum(r["orders"] for r in status_distribution if r["order_status"] == "processing_unpaid")
+    inflight_revenue = sum(float(r["revenue"]) for r in status_distribution if r["order_status"] == "processing_unpaid")
+
+    # 2. Status per bulan (untuk stacked chart)
+    monthly = conn.execute(text(f"""
+        SELECT
+            DATE_FORMAT(o.order_date, '%Y-%m') AS month,
+            o.order_status,
+            COUNT(*) AS orders,
+            COALESCE(SUM(o.net_revenue), 0) AS revenue
+        FROM orders o
+        WHERE o.source_platform = 'mengantar'
+          AND {cutoff_clause}
+        GROUP BY month, o.order_status
+        ORDER BY month, o.order_status
+    """))
+    monthly_data = rows_to_dict(monthly)
+
+    # 3. Per kurir (RTS rate)
+    per_courier = conn.execute(text(f"""
+        SELECT
+            COALESCE(o.shipping_provider, '(Unknown)') AS courier,
+            COUNT(*) AS total_orders,
+            SUM(CASE WHEN o.order_status = 'completed' THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN o.order_status = 'rts' THEN 1 ELSE 0 END) AS rts,
+            SUM(CASE WHEN o.order_status = 'processing_unpaid' THEN 1 ELSE 0 END) AS in_flight,
+            COALESCE(SUM(CASE WHEN o.order_status = 'completed' THEN o.net_revenue ELSE 0 END), 0) AS revenue_completed,
+            COALESCE(SUM(CASE WHEN o.order_status = 'rts' THEN o.net_revenue ELSE 0 END), 0) AS revenue_rts
+        FROM orders o
+        WHERE o.source_platform = 'mengantar'
+          AND {cutoff_clause}
+        GROUP BY courier
+        ORDER BY total_orders DESC
+    """))
+    per_courier_data = rows_to_dict(per_courier)
+    for c in per_courier_data:
+        total = c["total_orders"] or 1
+        c["rts_rate"] = round((c["rts"] or 0) / total * 100, 1)
+        c["completed_rate"] = round((c["completed"] or 0) / total * 100, 1)
+
+    # 4. Per provinsi (top 10 RTS)
+    per_province = conn.execute(text(f"""
+        SELECT
+            COALESCE(c.province, '(Unknown)') AS province,
+            COUNT(*) AS total_orders,
+            SUM(CASE WHEN o.order_status = 'rts' THEN 1 ELSE 0 END) AS rts,
+            SUM(CASE WHEN o.order_status = 'completed' THEN 1 ELSE 0 END) AS completed,
+            COALESCE(SUM(CASE WHEN o.order_status = 'rts' THEN o.net_revenue ELSE 0 END), 0) AS revenue_rts
+        FROM orders o
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        WHERE o.source_platform = 'mengantar'
+          AND {cutoff_clause}
+        GROUP BY province
+        HAVING total_orders >= 5
+        ORDER BY rts DESC
+        LIMIT 10
+    """))
+    per_province_data = rows_to_dict(per_province)
+    for p in per_province_data:
+        total = p["total_orders"] or 1
+        p["rts_rate"] = round((p["rts"] or 0) / total * 100, 1)
+
+    # 5. Repeat-RTS customers (RTS ≥ 2)
+    repeat_rts = conn.execute(text(f"""
+        SELECT
+            o.customer_id,
+            MAX(o.customer_name) AS customer_name,
+            COUNT(*) AS total_orders,
+            SUM(CASE WHEN o.order_status = 'rts' THEN 1 ELSE 0 END) AS rts_count,
+            SUM(CASE WHEN o.order_status = 'completed' THEN 1 ELSE 0 END) AS completed_count,
+            COALESCE(SUM(CASE WHEN o.order_status = 'rts' THEN o.net_revenue ELSE 0 END), 0) AS rts_value
+        FROM orders o
+        WHERE o.source_platform = 'mengantar'
+          AND o.customer_id IS NOT NULL
+          AND {cutoff_clause}
+        GROUP BY o.customer_id
+        HAVING rts_count >= 2
+        ORDER BY rts_count DESC, rts_value DESC
+        LIMIT 20
+    """))
+    repeat_rts_data = rows_to_dict(repeat_rts)
+    for r in repeat_rts_data:
+        total = r["total_orders"] or 1
+        r["rts_rate"] = round((r["rts_count"] or 0) / total * 100, 1)
+
+    # 6. In-flight orders > 7 hari (potensial nyangkut)
+    inflight_stuck = conn.execute(text("""
+        SELECT
+            o.order_id, o.order_date, o.customer_name, o.customer_id,
+            o.shipping_provider, o.net_revenue,
+            COALESCE(c.city, '') AS city, COALESCE(c.province, '') AS province,
+            DATEDIFF(NOW(), o.order_date) AS days_pending
+        FROM orders o
+        LEFT JOIN customers c ON o.customer_id = c.customer_id
+        WHERE o.source_platform = 'mengantar'
+          AND o.order_status = 'processing_unpaid'
+          AND DATEDIFF(NOW(), o.order_date) >= 7
+        ORDER BY days_pending DESC
+        LIMIT 50
+    """))
+    inflight_stuck_data = rows_to_dict(inflight_stuck)
+
+    # 7. Trend: bulan ini vs bulan lalu
+    this_month = conn.execute(text("""
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN order_status = 'completed' THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN order_status = 'rts' THEN 1 ELSE 0 END) AS rts
+        FROM orders
+        WHERE source_platform = 'mengantar'
+          AND DATE_FORMAT(order_date, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')
+    """)).fetchone()
+    last_month = conn.execute(text("""
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN order_status = 'completed' THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN order_status = 'rts' THEN 1 ELSE 0 END) AS rts
+        FROM orders
+        WHERE source_platform = 'mengantar'
+          AND DATE_FORMAT(order_date, '%Y-%m') = DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m')
+    """)).fetchone()
+
+    def rts_rate(row):
+        total = row[0] or 0
+        rts = row[2] or 0
+        return round(rts / total * 100, 1) if total else 0
+
+    return {
+        "months": months,
+        "summary": {
+            "total_orders": total_orders,
+            "completed": completed_orders,
+            "rts": rts_orders,
+            "in_flight": inflight_orders,
+            "in_flight_revenue": inflight_revenue,
+            "rts_rate": round(rts_orders / total_orders * 100, 1) if total_orders else 0,
+            "completed_rate": round(completed_orders / total_orders * 100, 1) if total_orders else 0,
+        },
+        "this_month": {
+            "total": int(this_month[0] or 0),
+            "completed": int(this_month[1] or 0),
+            "rts": int(this_month[2] or 0),
+            "rts_rate": rts_rate(this_month),
+        },
+        "last_month": {
+            "total": int(last_month[0] or 0),
+            "completed": int(last_month[1] or 0),
+            "rts": int(last_month[2] or 0),
+            "rts_rate": rts_rate(last_month),
+        },
+        "status_distribution": status_distribution,
+        "monthly": monthly_data,
+        "per_courier": per_courier_data,
+        "per_province": per_province_data,
+        "repeat_rts": repeat_rts_data,
+        "inflight_stuck": inflight_stuck_data,
+    }

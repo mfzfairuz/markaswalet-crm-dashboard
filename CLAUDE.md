@@ -93,6 +93,8 @@ python3 load_data.py # butuh CSV: master_customers_v2.csv, master_orders.csv, dl
 | GET    | `/analytics/revenue`             | Revenue breakdown per periode                      |
 | GET    | `/analytics/rfm`                 | Ringkasan segmen RFM (counts, revenue per segment) |
 | GET    | `/analytics/rfm/customers`       | List customer + skor R/F/M (filter segment/search) |
+| GET    | `/analytics/delivery-monitor`    | Mengantar delivery health (KPI, per kurir/provinsi, repeat-RTS, in-flight stuck) |
+| POST   | `/admin/normalize-mengantar-status` | One-shot migration: normalize raw legacy status di tabel `orders`. Pass `?dry_run=true` untuk preview |
 | POST   | `/import/orderonline`            | Upload data bulanan OrderOnline (Excel)            |
 | POST   | `/import/mengantar`              | Upload data bulanan Mengantar (Excel)              |
 | GET    | `/leads`                         | List leads dengan pipeline status                  |
@@ -132,7 +134,7 @@ Koneksi:
 
 ### Frontend SPA
 `frontend/index.html` adalah **single file ~98 KB** — HTML, CSS, dan JS semua inline. Routing halaman pakai `data-page` + div `.page` dengan class toggling. Halaman yang ada:
-- `page-dashboard`, `page-customers`, `page-orders`, `page-import`, `page-leads`, `page-panduan`, `page-lookup`, `page-export`, `page-importleads`
+- `page-dashboard`, `page-customers`, `page-orders`, `page-delivery`, `page-rfm`, `page-import`, `page-leads`, `page-panduan`, `page-lookup`, `page-export`, `page-importleads`
 
 Saat edit, **hati-hati dengan ukuran file** — kalau nambah fitur besar, pertimbangkan pecah jadi JS terpisah.
 
@@ -143,6 +145,17 @@ Dibuka `*` untuk semua origin (dev-friendly). Kalau mau produksi ketat, whitelis
 
 ### Data Import
 Endpoint `/import/orderonline` dan `/import/mengantar` menerima upload Excel bulanan. Skeleton sudah ada di `backend/main.py:453` dan `:489`. Preprocessing masih TODO — hati-hati kalau refactor.
+
+### Mengantar Status Mapping
+`map_status()` di `/import/mengantar` map status raw Mengantar ke 4 kategori standar: `completed`, `cancelled`, `rts`, `processing_unpaid`. Aturan inti:
+- "DELIVERED" (kecuali "UNDELIVERED") → completed
+- mengandung "CANCEL" → cancelled
+- mengandung "RTS"/"RETURN" atau exact "UNDELIVERED"/"REJECTED"/"IRREGULARITY" → rts
+- selain itu → processing_unpaid (in transit)
+
+Re-upload file Mengantar dengan `order_id` yang sama akan **update status** di DB (tidak skip), supaya order yang awalnya `processing_unpaid` flip ke `completed` setelah barang sampai. Customer stats (total_orders, revenue, segment) dan kolom `track` di leads ikut di-recompute via `_recalc_tracks()`.
+
+Untuk normalize data legacy (status raw seperti "delivery return", "rts in progress" yang masuk via `load_data.py`/`run.py`), ada endpoint sekali pakai `/admin/normalize-mengantar-status?dry_run=true|false`.
 
 ### Script Utilitas Data
 - `load_data.py` — **destruktif** (insert ke tabel kosong), hanya untuk initial setup
