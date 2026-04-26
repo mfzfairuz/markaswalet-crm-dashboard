@@ -1036,7 +1036,18 @@ async def _import_shopee_impl(file, conn):
 
     df = df.fillna("")
 
-    required = ['No. Pesanan', 'Status Pesanan', 'Username (Pembeli)', 'Total Harga Produk', 'Waktu Pesanan Dibuat']
+    # Shopee mengubah nama kolom price di file post-2026-03:
+    #   "Total Harga Produk" → "Dibayar Pembeli"
+    # Handler accept salah satu yang ada.
+    PRICE_COL_CANDIDATES = ['Total Harga Produk', 'Dibayar Pembeli']
+    price_col = next((c for c in PRICE_COL_CANDIDATES if c in df.columns), None)
+    if not price_col:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tidak ada kolom price. Cari salah satu dari: {PRICE_COL_CANDIDATES}"
+        )
+
+    required = ['No. Pesanan', 'Status Pesanan', 'Username (Pembeli)', 'Waktu Pesanan Dibuat']
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise HTTPException(status_code=400, detail=f"Kolom wajib tidak ada: {missing}")
@@ -1148,11 +1159,12 @@ async def _import_shopee_impl(file, conn):
         city = clean(first.get('Kota/Kabupaten'))
         province = clean(first.get('Provinsi'))
 
-        # Net revenue = SUM(Total Harga Produk - Diskon Penjual - Voucher Penjual - Paket Diskon Penjual)
+        # Net revenue = SUM(<price_col> - Diskon Penjual - Voucher Penjual - Paket Diskon Penjual)
+        # price_col = "Total Harga Produk" (lama) atau "Dibayar Pembeli" (post-2026-03)
         net_revenue = 0.0
         total_qty = 0
         for _, row in group.iterrows():
-            line = num(row.get('Total Harga Produk'))
+            line = num(row.get(price_col))
             line -= num(row.get('Diskon Dari Penjual'))
             line -= num(row.get('Voucher Ditanggung Penjual'))
             line -= num(row.get('Paket Diskon (Diskon dari Penjual)'))

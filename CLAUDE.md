@@ -181,7 +181,7 @@ Karakter unik Shopee yang perlu diperhatikan:
 - **`customer_id` Shopee = `shopee:<username>`** (string, bukan format `62...`). Customer Shopee jadi **silos** — tidak di-link otomatis ke customer Mengantar/OrderOnline. Cross-platform matching by name/address bisa di-tambah nanti.
 - **Multi-row per order** (1 row per item): handler group by `No. Pesanan`, parent `orders` row pakai SUM untuk `net_revenue` dan `total_qty`, lalu insert 1 row ke `order_items` per item.
 - **Status mapping**: "Selesai" → completed, "Batal" → cancelled, "Sedang/Telah Dikirim" → processing_unpaid, "Return"/"Refund" → rts.
-- **`net_revenue`** = `SUM(Total Harga Produk - Diskon Dari Penjual - Voucher Ditanggung Penjual - Paket Diskon Penjual)`. Komisi Shopee tidak ada di kolom export (di laporan keuangan terpisah).
+- **`net_revenue`** = `SUM(<price_col> - Diskon Dari Penjual - Voucher Ditanggung Penjual - Paket Diskon Penjual)`. Kolom `<price_col>` = `Total Harga Produk` (file pre-2026-03) atau `Dibayar Pembeli` (post-2026-03 — Shopee rename column). Handler accept salah satu yang ada. Komisi Shopee tidak ada di kolom export (di laporan keuangan terpisah).
 - **Re-upload**: sama seperti Mengantar, status update otomatis kalau berbeda, customer stats di-recalc.
 - **Auto-sync leads track**: tidak dijalankan untuk Shopee karena `customer_id` format-nya berbeda (tidak match phone leads). Itu intentional.
 
