@@ -463,10 +463,12 @@ def analytics_summary(
 
 
     # Top products — group by product_id
+    # Pakai product_catalogue (paling spesifik: include weight + variant)
+    # sebagai display name, fallback ke product_name (lalu order_items.product_name)
     top_products = conn.execute(text("""
         SELECT
-            MAX(COALESCE(p.product_name, oi.product_name)) as product_name,
-            MAX(oi.product_category) as product_category,
+            MAX(COALESCE(p.product_catalogue, p.product_name, oi.product_name)) as product_name,
+            MAX(COALESCE(p.product_category, oi.product_category)) as product_category,
             COUNT(*) as order_count,
             SUM(oi.qty_item) as total_qty
         FROM order_items oi
