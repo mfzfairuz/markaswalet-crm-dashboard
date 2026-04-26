@@ -1863,10 +1863,22 @@ async def normalize_mengantar_status(dry_run: bool = Query(False), conn=Depends(
 @app.get("/analytics/delivery-monitor")
 def delivery_monitor(
     months: int = Query(6, ge=1, le=24),
+    platform: str = Query("mengantar", description="mengantar | shopee | all"),
     conn=Depends(get_db)
 ):
-    """Comprehensive delivery health stats untuk Mengantar."""
+    """Comprehensive delivery health stats. Default Mengantar; bisa ?platform=shopee atau ?platform=all."""
     cutoff_clause = f"o.order_date >= DATE_SUB(CURDATE(), INTERVAL {months} MONTH)"
+
+    # Platform filter — default mengantar, support shopee, atau all (gabungan)
+    if platform == "all":
+        platform_clause = "o.source_platform IN ('mengantar','shopee','orderonline')"
+        platform_clause_simple = "source_platform IN ('mengantar','shopee','orderonline')"
+    elif platform == "shopee":
+        platform_clause = "o.source_platform = 'shopee'"
+        platform_clause_simple = "source_platform = 'shopee'"
+    else:  # default mengantar
+        platform_clause = "o.source_platform = 'mengantar'"
+        platform_clause_simple = "source_platform = 'mengantar'"
 
     # 1. Status distribution overall
     overall = conn.execute(text(f"""
@@ -1875,7 +1887,7 @@ def delivery_monitor(
             COUNT(*) AS orders,
             COALESCE(SUM(net_revenue), 0) AS revenue
         FROM orders o
-        WHERE o.source_platform = 'mengantar'
+        WHERE {platform_clause}
           AND {cutoff_clause}
         GROUP BY order_status
         ORDER BY orders DESC
@@ -1896,7 +1908,7 @@ def delivery_monitor(
             COUNT(*) AS orders,
             COALESCE(SUM(o.net_revenue), 0) AS revenue
         FROM orders o
-        WHERE o.source_platform = 'mengantar'
+        WHERE {platform_clause}
           AND {cutoff_clause}
         GROUP BY month, o.order_status
         ORDER BY month, o.order_status
@@ -1914,7 +1926,7 @@ def delivery_monitor(
             COALESCE(SUM(CASE WHEN o.order_status = 'completed' THEN o.net_revenue ELSE 0 END), 0) AS revenue_completed,
             COALESCE(SUM(CASE WHEN o.order_status = 'rts' THEN o.net_revenue ELSE 0 END), 0) AS revenue_rts
         FROM orders o
-        WHERE o.source_platform = 'mengantar'
+        WHERE {platform_clause}
           AND {cutoff_clause}
         GROUP BY courier
         ORDER BY total_orders DESC
@@ -1935,7 +1947,7 @@ def delivery_monitor(
             COALESCE(SUM(CASE WHEN o.order_status = 'rts' THEN o.net_revenue ELSE 0 END), 0) AS revenue_rts
         FROM orders o
         LEFT JOIN customers c ON o.customer_id = c.customer_id
-        WHERE o.source_platform = 'mengantar'
+        WHERE {platform_clause}
           AND {cutoff_clause}
         GROUP BY province
         HAVING total_orders >= 5
@@ -1957,7 +1969,7 @@ def delivery_monitor(
             SUM(CASE WHEN o.order_status = 'completed' THEN 1 ELSE 0 END) AS completed_count,
             COALESCE(SUM(CASE WHEN o.order_status = 'rts' THEN o.net_revenue ELSE 0 END), 0) AS rts_value
         FROM orders o
-        WHERE o.source_platform = 'mengantar'
+        WHERE {platform_clause}
           AND o.customer_id IS NOT NULL
           AND {cutoff_clause}
         GROUP BY o.customer_id
@@ -1971,15 +1983,15 @@ def delivery_monitor(
         r["rts_rate"] = round((r["rts_count"] or 0) / total * 100, 1)
 
     # 6. In-flight orders > 7 hari (potensial nyangkut)
-    inflight_stuck = conn.execute(text("""
+    inflight_stuck = conn.execute(text(f"""
         SELECT
             o.order_id, o.order_date, o.customer_name, o.customer_id,
-            o.shipping_provider, o.net_revenue,
+            o.source_platform, o.shipping_provider, o.net_revenue,
             COALESCE(c.city, '') AS city, COALESCE(c.province, '') AS province,
             DATEDIFF(NOW(), o.order_date) AS days_pending
         FROM orders o
         LEFT JOIN customers c ON o.customer_id = c.customer_id
-        WHERE o.source_platform = 'mengantar'
+        WHERE {platform_clause}
           AND o.order_status = 'processing_unpaid'
           AND DATEDIFF(NOW(), o.order_date) >= 7
         ORDER BY days_pending DESC
@@ -1988,22 +2000,22 @@ def delivery_monitor(
     inflight_stuck_data = rows_to_dict(inflight_stuck)
 
     # 7. Trend: bulan ini vs bulan lalu
-    this_month = conn.execute(text("""
+    this_month = conn.execute(text(f"""
         SELECT
             COUNT(*) AS total,
             SUM(CASE WHEN order_status = 'completed' THEN 1 ELSE 0 END) AS completed,
             SUM(CASE WHEN order_status = 'rts' THEN 1 ELSE 0 END) AS rts
         FROM orders
-        WHERE source_platform = 'mengantar'
+        WHERE {platform_clause_simple}
           AND DATE_FORMAT(order_date, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')
     """)).fetchone()
-    last_month = conn.execute(text("""
+    last_month = conn.execute(text(f"""
         SELECT
             COUNT(*) AS total,
             SUM(CASE WHEN order_status = 'completed' THEN 1 ELSE 0 END) AS completed,
             SUM(CASE WHEN order_status = 'rts' THEN 1 ELSE 0 END) AS rts
         FROM orders
-        WHERE source_platform = 'mengantar'
+        WHERE {platform_clause_simple}
           AND DATE_FORMAT(order_date, '%Y-%m') = DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m')
     """)).fetchone()
 
@@ -2014,6 +2026,7 @@ def delivery_monitor(
 
     return {
         "months": months,
+        "platform": platform,
         "summary": {
             "total_orders": total_orders,
             "completed": completed_orders,

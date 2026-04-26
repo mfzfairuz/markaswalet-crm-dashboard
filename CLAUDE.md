@@ -93,7 +93,7 @@ python3 load_data.py # butuh CSV: master_customers_v2.csv, master_orders.csv, dl
 | GET    | `/analytics/revenue`             | Revenue breakdown per periode                      |
 | GET    | `/analytics/rfm`                 | Ringkasan segmen RFM (counts, revenue per segment) |
 | GET    | `/analytics/rfm/customers`       | List customer + skor R/F/M (filter segment/search) |
-| GET    | `/analytics/delivery-monitor`    | Mengantar delivery health (KPI, per kurir/provinsi, repeat-RTS, in-flight stuck) |
+| GET    | `/analytics/delivery-monitor`    | Delivery health (KPI, per kurir/provinsi, repeat-RTS, in-flight stuck). `?platform=mengantar\|shopee\|all` (default mengantar) |
 | POST   | `/admin/normalize-mengantar-status` | One-shot migration: normalize raw legacy status di tabel `orders`. Pass `?dry_run=true` untuk preview |
 | POST   | `/import/orderonline`            | Upload data bulanan OrderOnline (Excel)            |
 | POST   | `/import/mengantar`              | Upload data bulanan Mengantar (Excel)              |

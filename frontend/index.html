@@ -460,8 +460,13 @@ tr:hover td { background: var(--bg3); color: var(--text); }
     <!-- DELIVERY MONITOR -->
     <div class="page" id="page-delivery">
       <div class="topbar">
-        <div class="topbar-title">Delivery Monitor — Mengantar</div>
+        <div class="topbar-title" id="deliveryTitle">Delivery Monitor</div>
         <div style="display:flex;align-items:center;gap:10px">
+          <select id="deliveryPlatform" onchange="onDeliveryPlatformChange()" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;outline:none">
+            <option value="mengantar" selected>Mengantar</option>
+            <option value="shopee">Shopee</option>
+            <option value="all">Semua Platform</option>
+          </select>
           <select id="deliveryRange" onchange="loadDeliveryMonitor()" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;outline:none">
             <option value="3">3 bulan</option>
             <option value="6" selected>6 bulan</option>
@@ -2237,11 +2242,24 @@ const STATUS_COLORS = {
   cancelled:         '#8D99AE',
 };
 
+function onDeliveryPlatformChange() {
+  const platform = document.getElementById('deliveryPlatform').value;
+  const titleMap = { mengantar: 'Mengantar', shopee: 'Shopee', all: 'Semua Platform' };
+  const titleEl = document.getElementById('deliveryTitle');
+  if (titleEl) titleEl.textContent = `Delivery Monitor — ${titleMap[platform] || ''}`;
+  loadDeliveryMonitor();
+}
+
 async function loadDeliveryMonitor() {
   const months = parseInt(document.getElementById('deliveryRange')?.value || '6');
+  const platform = document.getElementById('deliveryPlatform')?.value || 'mengantar';
+  // Update title (for first load too)
+  const titleMap = { mengantar: 'Mengantar', shopee: 'Shopee', all: 'Semua Platform' };
+  const titleEl = document.getElementById('deliveryTitle');
+  if (titleEl) titleEl.textContent = `Delivery Monitor — ${titleMap[platform] || ''}`;
   document.getElementById('deliveryKpi').dataset.loaded = '1';
   try {
-    const d = await fetch(`${API}/analytics/delivery-monitor?months=${months}`).then(r => r.json());
+    const d = await fetch(`${API}/analytics/delivery-monitor?months=${months}&platform=${platform}`).then(r => r.json());
 
     // KPI cards
     const s = d.summary || {};
