@@ -153,6 +153,8 @@ tr:hover td { background: var(--bg3); color: var(--text); }
 .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232,160,32,0.12); }
 .search-input::placeholder { color: var(--text3); }
 .filter-select { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; color: var(--text); font-family: var(--font-body); font-size: 13px; outline: none; cursor: pointer; min-width: 140px; }
+.btn-preset { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-family: var(--font-body); font-size: 10px; font-weight: 600; color: var(--text2); cursor: pointer; }
+.btn-preset:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .filter-select:focus { border-color: var(--accent); }
 
 /* CHART */
@@ -284,24 +286,32 @@ tr:hover td { background: var(--bg3); color: var(--text); }
         </div>
         <div class="grid-3">
           <div class="card">
-            <div class="card-header">
-            <div class="card-title">Revenue Bulanan</div>
-            <div style="display:flex;align-items:center;gap:10px">
-              <div style="display:flex;gap:8px;font-size:10px;color:var(--text3)">
-                <span><span style="display:inline-block;width:8px;height:8px;background:#E8A020;border-radius:2px;margin-right:3px"></span>Akuisisi</span>
-                <span><span style="display:inline-block;width:8px;height:8px;background:#2D7DD2;border-radius:2px;margin-right:3px"></span>Repeat</span>
+            <div class="card-header" style="flex-direction:column;align-items:flex-start;gap:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;width:100%;gap:10px;flex-wrap:wrap">
+                <div class="card-title">Revenue Bulanan</div>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <input type="month" id="revFrom" onchange="onRevenueFilterChange()"
+                    style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);outline:none">
+                  <span style="font-size:11px;color:var(--text3)">→</span>
+                  <input type="month" id="revTo" onchange="onRevenueFilterChange()"
+                    style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);outline:none">
+                </div>
               </div>
-              <select id="chartPeriod" onchange="renderChart()" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;outline:none">
-                <option value="6">6 Bln</option>
-                <option value="12">12 Bln</option>
-                <option value="24" selected>24 Bln</option>
-              </select>
+              <div style="display:flex;justify-content:space-between;align-items:center;width:100%;gap:10px;flex-wrap:wrap">
+                <div style="display:flex;gap:8px;font-size:11px;color:var(--text3)">
+                  <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;margin-right:4px"></span>Akuisisi</span>
+                  <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent2);border-radius:2px;margin-right:4px"></span>Repeat</span>
+                </div>
+                <div style="display:flex;gap:4px;font-size:10px;flex-wrap:wrap">
+                  <button onclick="setRevenuePreset(3)" class="btn-preset">3B</button>
+                  <button onclick="setRevenuePreset(6)" class="btn-preset">6B</button>
+                  <button onclick="setRevenuePreset(12)" class="btn-preset">12B</button>
+                  <button onclick="setRevenuePreset(24)" class="btn-preset">24B</button>
+                  <button onclick="setRevenuePresetYTD()" class="btn-preset">YTD</button>
+                  <button onclick="setRevenuePresetAll()" class="btn-preset">All</button>
+                </div>
+              </div>
             </div>
-            <div style="display:flex;gap:12px;font-size:11px;color:var(--text3)">
-              <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;margin-right:4px"></span>Akuisisi Baru</span>
-              <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent2);border-radius:2px;margin-right:4px"></span>Repeat Order</span>
-            </div>
-          </div>
             <div class="card-body"><div class="chart-area" id="revenueChart"><div class="loading"><div class="spinner"></div></div></div></div>
           </div>
           <div class="card">
@@ -364,6 +374,7 @@ tr:hover td { background: var(--bg3); color: var(--text); }
             <option value="">Semua Platform</option>
             <option value="orderonline">OrderOnline</option>
             <option value="mengantar">Mengantar</option>
+            <option value="shopee">Shopee</option>
           </select>
         </div>
         <div class="card">
@@ -402,6 +413,7 @@ tr:hover td { background: var(--bg3); color: var(--text); }
             <option value="">Semua Platform</option>
             <option value="orderonline">OrderOnline</option>
             <option value="mengantar">Mengantar</option>
+            <option value="shopee">Shopee</option>
           </select>
           <select class="filter-select" id="orderPayment" onchange="loadOrders()">
             <option value="">Semua Payment</option>
@@ -1078,8 +1090,14 @@ async function checkHealth() {
 
 async function loadDashboard() {
   try {
+    const fromVal = document.getElementById('revFrom')?.value;
+    const toVal = document.getElementById('revTo')?.value;
+    const params = new URLSearchParams();
+    if (fromVal) params.set('date_from', fromVal);
+    if (toVal)   params.set('date_to', toVal);
+    const qs = params.toString() ? '?' + params.toString() : '';
     const [summary] = await Promise.all([
-      fetch(API+'/analytics/summary').then(r=>r.json())
+      fetch(API + '/analytics/summary' + qs).then(r => r.json())
     ]);
     const revenue = {data: summary.monthly_revenue};
     const o = summary.orders, c = summary.customers;
@@ -1597,17 +1615,70 @@ async function importLeads(input) {
 }
 
 function renderChart() {
-  const n=parseInt(document.getElementById('chartPeriod')?.value||'24');
-  const months=(window._chartMonths||[]).slice(-n);
-  const maxRev=Math.max(...months.map(m=>m.revenue||0));
-  document.getElementById('revenueChart').innerHTML=months.map(m=>{
-    const pct=maxRev>0?Math.max(8,(m.revenue/maxRev)*170):8;
-    const newH=Math.round(pct*(m.revenue>0?(m.revenue_new||0)/m.revenue:0));
-    const repH=pct-newH;
-    return '<div class="bar-wrap"><div style="display:flex;flex-direction:column;width:100%;height:'+pct+'px;border-radius:4px 4px 0 0;overflow:hidden;cursor:pointer" title="'+m.month+': '+fmt(m.revenue)+' (Akuisisi: '+fmt(m.revenue_new||0)+', Repeat: '+fmt(m.revenue_repeat||0)+')"><div style="height:'+newH+'px;background:linear-gradient(180deg,#E8A020,rgba(232,160,32,0.5));min-height:'+(newH>0?2:0)+'px"></div><div style="height:'+repH+'px;background:linear-gradient(180deg,#2D7DD2,rgba(45,125,210,0.4));min-height:'+(repH>0?2:0)+'px"></div></div><div class="bar-label">'+(m.month||'').slice(5)+'</div></div>';
-  }).join('');
+  // Filter berdasarkan input month range
+  const fromVal = document.getElementById('revFrom')?.value;
+  const toVal = document.getElementById('revTo')?.value;
+  let months = (window._chartMonths || []).slice();
+  if (fromVal) months = months.filter(m => (m.month || '') >= fromVal);
+  if (toVal)   months = months.filter(m => (m.month || '') <= toVal);
+
+  const maxRev = Math.max(1, ...months.map(m => m.revenue || 0));
+  document.getElementById('revenueChart').innerHTML = months.map(m => {
+    const pct = Math.max(8, (m.revenue / maxRev) * 170);
+    const newH = Math.round(pct * (m.revenue > 0 ? (m.revenue_new || 0) / m.revenue : 0));
+    const repH = pct - newH;
+    return '<div class="bar-wrap"><div style="display:flex;flex-direction:column;width:100%;height:' + pct + 'px;border-radius:4px 4px 0 0;overflow:hidden;cursor:pointer" title="' + m.month + ': ' + fmt(m.revenue) + ' (Akuisisi: ' + fmt(m.revenue_new || 0) + ', Repeat: ' + fmt(m.revenue_repeat || 0) + ')"><div style="height:' + newH + 'px;background:linear-gradient(180deg,#E8A020,rgba(232,160,32,0.5));min-height:' + (newH > 0 ? 2 : 0) + 'px"></div><div style="height:' + repH + 'px;background:linear-gradient(180deg,#2D7DD2,rgba(45,125,210,0.4));min-height:' + (repH > 0 ? 2 : 0) + 'px"></div></div><div class="bar-label">' + (m.month || '').slice(5) + '</div></div>';
+  }).join('') || '<div style="text-align:center;width:100%;color:var(--text3);padding:30px">Tidak ada data di rentang ini</div>';
 }
+
+function onRevenueFilterChange() {
+  // Re-fetch from API kalau range melewati window default fetch
+  loadDashboard();
+}
+
+function _ymToMonth(ym) {
+  // ym = "YYYY-MM" → string
+  return ym;
+}
+
+function _todayYM() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function _shiftYM(months) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - months);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function setRevenuePreset(months) {
+  document.getElementById('revFrom').value = _shiftYM(months - 1);
+  document.getElementById('revTo').value = _todayYM();
+  loadDashboard();
+}
+
+function setRevenuePresetYTD() {
+  const d = new Date();
+  document.getElementById('revFrom').value = d.getFullYear() + '-01';
+  document.getElementById('revTo').value = _todayYM();
+  loadDashboard();
+}
+
+function setRevenuePresetAll() {
+  document.getElementById('revFrom').value = '';
+  document.getElementById('revTo').value = '';
+  loadDashboard();
+}
+
 checkHealth();
+// Default range: 24 bulan ke belakang
+(function initRevenueRange() {
+  const fromEl = document.getElementById('revFrom');
+  const toEl = document.getElementById('revTo');
+  if (fromEl && !fromEl.value) fromEl.value = _shiftYM(23);
+  if (toEl && !toEl.value) toEl.value = _todayYM();
+})();
 loadDashboard();
 function doLookup() {
   const phone = document.getElementById('lookupPhone').value.trim();

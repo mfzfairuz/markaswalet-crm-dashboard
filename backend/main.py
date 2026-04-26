@@ -336,8 +336,13 @@ def list_orders(
 # ════════════════════════════════════════════════════════════════════
 
 @app.get("/analytics/summary")
-def analytics_summary(conn=Depends(get_db)):
-    """Summary statistik utama"""
+def analytics_summary(
+    date_from: Optional[str] = Query(None, description="Filter monthly_revenue: YYYY-MM atau YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="Filter monthly_revenue: YYYY-MM atau YYYY-MM-DD"),
+    months: int = Query(24, ge=1, le=120, description="Fallback kalau date_from/to tidak diset"),
+    conn=Depends(get_db),
+):
+    """Summary statistik utama. monthly_revenue bisa di-filter dengan date_from/date_to."""
 
     # Revenue & order stats
     stats = conn.execute(text("""
@@ -362,8 +367,28 @@ def analytics_summary(conn=Depends(get_db)):
         FROM customers
     """)).fetchone()
 
-        # Revenue per bulan — akuisisi vs repeat
-    monthly = conn.execute(text("""
+    # Revenue per bulan — akuisisi vs repeat
+    # Filter: date_from/date_to (kalau diset) atau fallback ke `months` ke belakang
+    where_parts = ["o.order_status = 'completed'"]
+    params = {}
+    if date_from:
+        # Normalisasi YYYY-MM → YYYY-MM-01
+        df = date_from if len(date_from) > 7 else f"{date_from}-01"
+        where_parts.append("o.order_date >= :df")
+        params["df"] = df
+    if date_to:
+        # Untuk YYYY-MM, ambil sampai akhir bulan via DATE_ADD(LAST_DAY)
+        if len(date_to) <= 7:
+            where_parts.append("o.order_date < DATE_ADD(LAST_DAY(:dt), INTERVAL 1 DAY)")
+            params["dt"] = f"{date_to}-01"
+        else:
+            where_parts.append("o.order_date <= :dt")
+            params["dt"] = f"{date_to} 23:59:59"
+    if not date_from and not date_to:
+        where_parts.append(f"o.order_date >= DATE_SUB(NOW(), INTERVAL {int(months)} MONTH)")
+
+    where_sql = " AND ".join(where_parts)
+    monthly = conn.execute(text(f"""
         SELECT
             DATE_FORMAT(o.order_date, '%Y-%m') as month,
             COUNT(*) as orders,
@@ -374,11 +399,10 @@ def analytics_summary(conn=Depends(get_db)):
                 THEN o.net_revenue ELSE 0 END) as revenue_repeat
         FROM orders o
         LEFT JOIN customers c ON o.customer_id = c.customer_id
-        WHERE o.order_status = 'completed'
-          AND o.order_date >= DATE_SUB(NOW(), INTERVAL 24 MONTH)
+        WHERE {where_sql}
         GROUP BY month
         ORDER BY month
-    """))
+    """), params)
 
 
     # Top products — group by product_id
