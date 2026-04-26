@@ -298,12 +298,33 @@ def list_orders(
     if platform:
         where.append("source_platform = :platform")
         params["platform"] = platform
+    # Date safety: kalau frontend kirim date invalid (mis. 2025-02-31),
+    # coerce ke last day of month yang valid, daripada 500 silent error.
+    import calendar
+    from datetime import datetime as _dt
+    def _safe_date(s):
+        try:
+            _dt.strptime(s, '%Y-%m-%d')
+            return s
+        except ValueError:
+            parts = s.split('-')
+            if len(parts) >= 2:
+                try:
+                    y, m = int(parts[0]), int(parts[1])
+                    last = calendar.monthrange(y, m)[1]
+                    return f"{y:04d}-{m:02d}-{last:02d}"
+                except Exception:
+                    pass
+            return None
+
     if date_from:
+        df = _safe_date(date_from) or date_from
         where.append("order_date >= :date_from")
-        params["date_from"] = date_from
+        params["date_from"] = df
     if date_to:
+        dt_safe = _safe_date(date_to) or date_to
         where.append("order_date <= :date_to")
-        params["date_to"] = date_to
+        params["date_to"] = dt_safe + " 23:59:59"
 
     where_sql = " AND ".join(where)
 

@@ -1298,7 +1298,15 @@ async function loadOrders() {
   if(platform)params.set('platform',platform);
   if(payment)params.set('payment',payment);
   if(courier)params.set('courier',courier);
-  if(month){params.set('date_from',month+'-01');params.set('date_to',month+'-31');}
+  if(month){
+    // month format: "YYYY-MM". Hitung hari terakhir di bulan tersebut.
+    // new Date(year, monthIndex, 0) memberikan hari terakhir bulan SEBELUMnya,
+    // jadi kalau month=2025-02, kita pass (2025, 2, 0) → 28 Feb 2025.
+    const [y, mo] = month.split('-').map(Number);
+    const lastDay = new Date(y, mo, 0).getDate();
+    params.set('date_from', month + '-01');
+    params.set('date_to', month + '-' + String(lastDay).padStart(2, '0'));
+  }
   params.set('sort',sortVal[0]);params.set('dir',sortVal[1]);
 
   document.getElementById('ordersTable').innerHTML=`<tr><td colspan="8"><div class="loading"><div class="spinner"></div> Memuat...</div></td></tr>`;
