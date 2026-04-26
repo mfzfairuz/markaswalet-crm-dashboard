@@ -1900,26 +1900,32 @@ def _normalize_product_text(s):
     if not s:
         return ""
     s = str(s).lower()
-    # Hapus brand prefix umum
-    for brand in ["markaswalet official", "markas walet", "jagonya inapkan walet"]:
-        s = s.replace(brand, "")
     # Hapus content dalam tanda kurung: "(untuk 30 liter)" dll
     s = re.sub(r'\([^)]*\)', '', s)
-    # Hapus suffix setelah pipe
+    # Hapus suffix setelah pipe (apapun setelah |)
     if '|' in s:
         s = s.split('|')[0]
+    # Hapus pattern brand "by Markaswalet [Official]" / "by Markas Walet"
+    s = re.sub(r'\bby\s+markas(?:walet|\s+walet)(?:\s+official)?\b', '', s)
+    # Hapus brand mention sisa
+    for brand in ["markaswalet official", "markas walet", "markaswalet",
+                  "jagonya inapkan walet"]:
+        s = s.replace(brand, "")
     # Normalize satuan berat
     s = re.sub(r'(\d+)\s*gram\b', r'\1 gr', s)
     s = re.sub(r'(\d+)\s*gr\b', r'\1 gr', s)
-    # Hapus karakter aneh
+    # Hapus dashes/underscore/em-dash
     s = re.sub(r'[-–—_]+', ' ', s)
+    # Hapus punctuation lainnya
+    s = re.sub(r'[,\.;:!?]+', ' ', s)
     # Collapse whitespace
     s = re.sub(r'\s+', ' ', s).strip()
     return s
 
 
 def _load_product_catalogue(conn):
-    """Load (product_id, normalized_catalogue) tuples untuk matching."""
+    """Load (product_id, normalized_catalogue, original_catalogue) untuk matching.
+    Plus juga simpan token set yang sudah filter stopwords (pre-computed buat speed)."""
     rows = conn.execute(text("""
         SELECT product_id,
                COALESCE(product_catalogue, product_name, '') AS match_text
@@ -1929,17 +1935,37 @@ def _load_product_catalogue(conn):
     out = []
     for pid, txt in rows:
         norm = _normalize_product_text(txt)
-        if norm and len(norm) >= 5:  # Skip nama terlalu pendek (false positive risk)
-            out.append((pid, norm, txt))
+        if norm and len(norm) >= 5:
+            tokens = _meaningful_tokens(norm)
+            out.append((pid, norm, txt, tokens))
     return out
+
+
+# Stopwords yang umum muncul tapi tidak diskriminatif untuk matching
+_PRODUCT_STOPWORDS = frozenset({
+    'parfum', 'walet', 'paket', 'untuk', 'liter', 'gr', 'gram', 'ml',
+    'free', 'bonus', 'aroma', 'pemikat', 'burung', 'air',
+    'bubuk', 'cairan', 'original', 'super', 'and', 'or',
+    'dan', 'atau', 'dari', 'oleh', 'by', 'with', 'plus',
+    'rumah', 'sirip', 'kayu', 'official', 'standar',
+})
+
+
+def _meaningful_tokens(s):
+    """Extract token set: filter stopwords + min length 3."""
+    return {t for t in s.split() if t not in _PRODUCT_STOPWORDS and len(t) >= 3}
 
 
 def _match_shopee_product_id(shopee_name, lookup):
     """
     Match nama produk Shopee → product_id.
-    Tier 1: substring match — product_catalogue muncul utuh di Shopee name.
-    Tier 2: keyword overlap — minimum 3 kata penting cocok.
-    Return product_id atau None kalau ambigu/tidak match.
+
+    Lookup item: (product_id, normalized_catalogue, original_catalogue, c_tokens)
+
+    Tier 1: substring match — pilih yang paling spesifik (panjang).
+    Tier 2: token overlap — pilih yang overlap-nya tertinggi, lalu coverage,
+            lalu fewest catalogue tokens (=match SHOPEE base name ke catalogue
+            base, bukan variant FREE *).
     """
     if not shopee_name:
         return None
@@ -1947,35 +1973,38 @@ def _match_shopee_product_id(shopee_name, lookup):
     if not n:
         return None
 
-    # Tier 1: Substring — pilih yang paling spesifik (panjang)
-    matches = []
-    for pid, catalogue, _orig in lookup:
-        if catalogue in n:
-            matches.append((pid, catalogue, len(catalogue)))
-    if matches:
-        matches.sort(key=lambda x: -x[2])
-        # Kalau ada >=2 match dengan panjang berbeda significant, pilih yang lebih panjang
-        return matches[0][0]
+    # Tier 1
+    sub_matches = [(pid, len(catalogue)) for pid, catalogue, _, _ in lookup
+                   if catalogue in n]
+    if sub_matches:
+        sub_matches.sort(key=lambda x: -x[1])
+        return sub_matches[0][0]
 
-    # Tier 2: Token-based — cek apakah token kunci match
-    # Skip kata umum
-    STOPWORDS = {'parfum', 'walet', 'paket', 'untuk', 'liter', 'gr', 'gram',
-                 'free', 'bonus', 'aroma', 'pemikat', 'burung', 'air',
-                 'bubuk', 'original', 'super', 'dan', 'atau', 'dari'}
-    n_tokens = set(t for t in n.split() if t not in STOPWORDS and len(t) >= 3)
+    # Tier 2
+    n_tokens = _meaningful_tokens(n)
     if not n_tokens:
         return None
 
-    best = (None, 0)
-    for pid, catalogue, _orig in lookup:
-        c_tokens = set(t for t in catalogue.split() if t not in STOPWORDS and len(t) >= 3)
+    candidates = []
+    for pid, _catalogue, _orig, c_tokens in lookup:
+        if not c_tokens:
+            continue
         overlap = len(n_tokens & c_tokens)
-        # Minimum 2 token overlap + at least 50% dari catalogue ter-cover
-        if overlap >= 2 and (overlap / len(c_tokens) >= 0.5 if c_tokens else False):
-            score = overlap
-            if score > best[1]:
-                best = (pid, score)
-    return best[0]
+        if overlap < 2:
+            continue
+        coverage = overlap / len(c_tokens)
+        if coverage < 0.5:
+            continue
+        candidates.append((pid, overlap, coverage, len(c_tokens)))
+
+    if not candidates:
+        return None
+
+    # Sort: highest overlap, lalu highest coverage, lalu fewest catalogue tokens
+    # (smaller catalogue = lebih general = match base variant Shopee yang
+    # tidak punya variant marker)
+    candidates.sort(key=lambda x: (-x[1], -x[2], x[3]))
+    return candidates[0][0]
 
 
 @app.post("/admin/sync-products")
