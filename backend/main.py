@@ -54,7 +54,7 @@ def get_db():
 # ── SCHEMA INIT ────────────────────────────────────────────────────────
 @app.on_event("startup")
 def init_schema():
-    """Create audit/log tables kalau belum ada (idempotent)."""
+    """Create audit/log tables + extend products table kalau belum ada (idempotent)."""
     try:
         with engine.connect() as conn:
             conn.execute(text("""
@@ -71,6 +71,29 @@ def init_schema():
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """))
             conn.commit()
+
+            # Extend products table dengan kolom rich dari Product Database 2025.xlsx.
+            # Kalau kolom sudah ada, MySQL akan error → di-catch & di-skip per kolom.
+            for ddl in [
+                "ALTER TABLE products ADD COLUMN product_category VARCHAR(60) NULL",
+                "ALTER TABLE products ADD COLUMN product_subcategory VARCHAR(80) NULL",
+                "ALTER TABLE products ADD COLUMN product_variant VARCHAR(255) NULL",
+                "ALTER TABLE products ADD COLUMN product_catalogue VARCHAR(255) NULL",
+                "ALTER TABLE products ADD COLUMN product_weight INT NULL",
+                "ALTER TABLE products ADD COLUMN product_price DECIMAL(15,2) NULL",
+                "ALTER TABLE products ADD COLUMN product_cost DECIMAL(15,2) NULL",
+                "ALTER TABLE products ADD COLUMN shopee_link VARCHAR(500) NULL",
+                "ALTER TABLE products ADD COLUMN orderonline_link VARCHAR(500) NULL",
+                "ALTER TABLE products ADD COLUMN tokopedia_link VARCHAR(500) NULL",
+                "ALTER TABLE products ADD COLUMN tiktok_link VARCHAR(500) NULL",
+                "CREATE INDEX idx_products_catalogue ON products (product_catalogue)",
+            ]:
+                try:
+                    conn.execute(text(ddl))
+                    conn.commit()
+                except Exception:
+                    # Kolom/index sudah ada — fine
+                    pass
     except Exception as e:
         print(f"Schema init warning: {e}")
 
@@ -1143,6 +1166,10 @@ async def _import_shopee_impl(file, conn):
     )).fetchall()
     cust_map = {r[0]: r[1] for r in cust_rows}
 
+    # Load product catalogue lookup sekali untuk fuzzy matching nama → product_id.
+    # Kalau Excel Product Database belum di-sync ke DB, lookup kosong → product_id NULL (fallback).
+    product_lookup = _load_product_catalogue(conn)
+
     # Load existing orders dengan status
     existing_orders = {r[0]: r[1] for r in conn.execute(
         text("SELECT order_id, order_status FROM orders WHERE source_platform='shopee'")
@@ -1263,11 +1290,15 @@ async def _import_shopee_impl(file, conn):
             sku_ref = clean(row.get('Nomor Referensi SKU'))
             line_qty = int(num(row.get('Jumlah'), 1))
             full_name = f"{prod_name}" + (f" — {variant}" if variant else "")
+            # Resolve product_id: 1) SKU Shopee kalau ada, 2) fuzzy match nama → product_id
+            resolved_pid = sku_induk or sku_ref
+            if not resolved_pid and product_lookup:
+                resolved_pid = _match_shopee_product_id(full_name, product_lookup)
             conn.execute(text("""
                 INSERT INTO order_items
                 (order_id, source_platform, product_id, product_raw, product_name, qty_item)
                 VALUES (:oid, 'shopee', :pid, :praw, :pname, :qty)
-            """), {"oid": order_id, "pid": sku_induk or sku_ref,
+            """), {"oid": order_id, "pid": resolved_pid,
                    "praw": prod_name, "pname": full_name, "qty": line_qty})
 
         existing_orders[order_id] = new_status
@@ -1858,6 +1889,244 @@ async def normalize_mengantar_status(dry_run: bool = Query(False), conn=Depends(
 
     conn.commit()
     return {"dry_run": False, "total_updated": total_updated, "plan": plan}
+
+
+# ════════════════════════════════════════════════════════════════════
+# PRODUCT DATABASE SYNC + SHOPEE PRODUCT MATCHING
+# ════════════════════════════════════════════════════════════════════
+
+def _normalize_product_text(s):
+    """Normalize untuk matching: lowercase, strip brand/parens/pipe suffix, normalize gram→gr."""
+    if not s:
+        return ""
+    s = str(s).lower()
+    # Hapus brand prefix umum
+    for brand in ["markaswalet official", "markas walet", "jagonya inapkan walet"]:
+        s = s.replace(brand, "")
+    # Hapus content dalam tanda kurung: "(untuk 30 liter)" dll
+    s = re.sub(r'\([^)]*\)', '', s)
+    # Hapus suffix setelah pipe
+    if '|' in s:
+        s = s.split('|')[0]
+    # Normalize satuan berat
+    s = re.sub(r'(\d+)\s*gram\b', r'\1 gr', s)
+    s = re.sub(r'(\d+)\s*gr\b', r'\1 gr', s)
+    # Hapus karakter aneh
+    s = re.sub(r'[-–—_]+', ' ', s)
+    # Collapse whitespace
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s
+
+
+def _load_product_catalogue(conn):
+    """Load (product_id, normalized_catalogue) tuples untuk matching."""
+    rows = conn.execute(text("""
+        SELECT product_id,
+               COALESCE(product_catalogue, product_name, '') AS match_text
+        FROM products
+        WHERE COALESCE(product_catalogue, product_name) IS NOT NULL
+    """)).fetchall()
+    out = []
+    for pid, txt in rows:
+        norm = _normalize_product_text(txt)
+        if norm and len(norm) >= 5:  # Skip nama terlalu pendek (false positive risk)
+            out.append((pid, norm, txt))
+    return out
+
+
+def _match_shopee_product_id(shopee_name, lookup):
+    """
+    Match nama produk Shopee → product_id.
+    Tier 1: substring match — product_catalogue muncul utuh di Shopee name.
+    Tier 2: keyword overlap — minimum 3 kata penting cocok.
+    Return product_id atau None kalau ambigu/tidak match.
+    """
+    if not shopee_name:
+        return None
+    n = _normalize_product_text(shopee_name)
+    if not n:
+        return None
+
+    # Tier 1: Substring — pilih yang paling spesifik (panjang)
+    matches = []
+    for pid, catalogue, _orig in lookup:
+        if catalogue in n:
+            matches.append((pid, catalogue, len(catalogue)))
+    if matches:
+        matches.sort(key=lambda x: -x[2])
+        # Kalau ada >=2 match dengan panjang berbeda significant, pilih yang lebih panjang
+        return matches[0][0]
+
+    # Tier 2: Token-based — cek apakah token kunci match
+    # Skip kata umum
+    STOPWORDS = {'parfum', 'walet', 'paket', 'untuk', 'liter', 'gr', 'gram',
+                 'free', 'bonus', 'aroma', 'pemikat', 'burung', 'air',
+                 'bubuk', 'original', 'super', 'dan', 'atau', 'dari'}
+    n_tokens = set(t for t in n.split() if t not in STOPWORDS and len(t) >= 3)
+    if not n_tokens:
+        return None
+
+    best = (None, 0)
+    for pid, catalogue, _orig in lookup:
+        c_tokens = set(t for t in catalogue.split() if t not in STOPWORDS and len(t) >= 3)
+        overlap = len(n_tokens & c_tokens)
+        # Minimum 2 token overlap + at least 50% dari catalogue ter-cover
+        if overlap >= 2 and (overlap / len(c_tokens) >= 0.5 if c_tokens else False):
+            score = overlap
+            if score > best[1]:
+                best = (pid, score)
+    return best[0]
+
+
+@app.post("/admin/sync-products")
+async def sync_products(file: UploadFile = File(...), conn=Depends(get_db)):
+    """
+    Upload Product Database 2025.xlsx, UPSERT ke tabel `products`.
+    Idempotent: insert kalau belum ada, update kalau sudah ada.
+    Format Excel: kolom product_id, product_category, product_subcategory,
+    product_name, product_variant, product_catalogue, product_weight,
+    product_price, product_cost, shopee_link, orderonline_link,
+    tokopedia_link, tiktok_link.
+    """
+    contents = await file.read()
+    try:
+        df = pd.read_excel(io.BytesIO(contents), sheet_name=0, dtype=str)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal baca file: {str(e)}")
+
+    df = df.fillna("")
+    if 'product_id' not in df.columns:
+        raise HTTPException(status_code=400, detail="Kolom 'product_id' wajib ada")
+
+    def clean(v):
+        s = str(v).strip()
+        return None if s in ("", "nan", "NaN", "None") else s
+
+    def num(v, decimal=False):
+        s = str(v).replace("Rp", "").replace(",", "").replace(".", "").strip()
+        try:
+            return float(s) if decimal else int(s)
+        except Exception:
+            return None
+
+    inserted = 0
+    updated = 0
+    for _, row in df.iterrows():
+        pid = clean(row.get('product_id'))
+        if not pid:
+            continue
+        data = {
+            "pid": pid,
+            "name": clean(row.get('product_name')),
+            "cat": clean(row.get('product_category')),
+            "subcat": clean(row.get('product_subcategory')),
+            "var": clean(row.get('product_variant')),
+            "catalogue": clean(row.get('product_catalogue')),
+            "weight": num(row.get('product_weight')),
+            "price": num(row.get('product_price'), decimal=True),
+            "cost": num(row.get('product_cost'), decimal=True),
+            "shopee": clean(row.get('shopee_link')),
+            "oo": clean(row.get('orderonline_link')),
+            "toko": clean(row.get('tokopedia_link')),
+            "tiktok": clean(row.get('tiktok_link')),
+        }
+        # UPSERT
+        existing = conn.execute(
+            text("SELECT 1 FROM products WHERE product_id = :pid"), {"pid": pid}
+        ).fetchone()
+        if existing:
+            conn.execute(text("""
+                UPDATE products SET
+                    product_name = :name,
+                    product_category = :cat,
+                    product_subcategory = :subcat,
+                    product_variant = :var,
+                    product_catalogue = :catalogue,
+                    product_weight = :weight,
+                    product_price = :price,
+                    product_cost = :cost,
+                    shopee_link = :shopee,
+                    orderonline_link = :oo,
+                    tokopedia_link = :toko,
+                    tiktok_link = :tiktok
+                WHERE product_id = :pid
+            """), data)
+            updated += 1
+        else:
+            conn.execute(text("""
+                INSERT INTO products
+                (product_id, product_name, product_category, product_subcategory,
+                 product_variant, product_catalogue, product_weight,
+                 product_price, product_cost, shopee_link, orderonline_link,
+                 tokopedia_link, tiktok_link)
+                VALUES (:pid, :name, :cat, :subcat, :var, :catalogue, :weight,
+                        :price, :cost, :shopee, :oo, :toko, :tiktok)
+            """), data)
+            inserted += 1
+    conn.commit()
+    return {"status": "success", "inserted": inserted, "updated": updated, "total": inserted + updated}
+
+
+@app.post("/admin/backfill-shopee-product-id")
+async def backfill_shopee_product_id(
+    dry_run: bool = Query(False),
+    conn=Depends(get_db)
+):
+    """
+    Re-match Shopee order_items.product_id berdasarkan nama → product_catalogue.
+    Pass ?dry_run=true untuk preview tanpa update.
+    """
+    lookup = _load_product_catalogue(conn)
+    if not lookup:
+        raise HTTPException(
+            status_code=400,
+            detail="Tabel products kosong/tanpa catalogue. Sync via /admin/sync-products dulu."
+        )
+
+    # Ambil order_items Shopee yang product_id NULL atau UNMAPPED
+    rows = conn.execute(text("""
+        SELECT id, product_name, product_raw, product_id
+        FROM order_items
+        WHERE source_platform = 'shopee'
+          AND (product_id IS NULL OR product_id = '' OR product_id IN ('UNMAPPED','UNKNOWN'))
+    """)).fetchall()
+
+    matched = 0
+    unmatched = 0
+    plan_sample = []
+    update_batch = []
+    for r in rows:
+        item_id, pname, praw, current_pid = r
+        candidate_name = pname or praw or ""
+        new_pid = _match_shopee_product_id(candidate_name, lookup)
+        if new_pid:
+            matched += 1
+            update_batch.append({"id": item_id, "pid": new_pid})
+            if len(plan_sample) < 20:
+                plan_sample.append({
+                    "shopee_name": (candidate_name or "")[:120],
+                    "matched_to": new_pid,
+                })
+        else:
+            unmatched += 1
+
+    if not dry_run and update_batch:
+        # Batch update
+        for u in update_batch:
+            conn.execute(text(
+                "UPDATE order_items SET product_id = :pid WHERE id = :id"
+            ), u)
+        conn.commit()
+
+    return {
+        "dry_run": dry_run,
+        "total_unmapped": len(rows),
+        "matched": matched,
+        "unmatched": unmatched,
+        "match_rate_pct": round(matched / len(rows) * 100, 1) if rows else 0,
+        "sample_matches": plan_sample,
+        "products_in_catalogue": len(lookup),
+    }
 
 
 @app.get("/analytics/delivery-monitor")

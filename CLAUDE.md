@@ -95,6 +95,8 @@ python3 load_data.py # butuh CSV: master_customers_v2.csv, master_orders.csv, dl
 | GET    | `/analytics/rfm/customers`       | List customer + skor R/F/M (filter segment/search) |
 | GET    | `/analytics/delivery-monitor`    | Delivery health (KPI, per kurir/provinsi, repeat-RTS, in-flight stuck). `?platform=mengantar\|shopee\|all` (default mengantar) |
 | POST   | `/admin/normalize-mengantar-status` | One-shot migration: normalize raw legacy status di tabel `orders`. Pass `?dry_run=true` untuk preview |
+| POST   | `/admin/sync-products`           | Upload `Product Database 2025.xlsx` → UPSERT semua row ke tabel `products` (rich fields: catalogue, variant, links, dll) |
+| POST   | `/admin/backfill-shopee-product-id` | Re-match `order_items` Shopee yang `product_id` NULL → fuzzy match via `product_catalogue`. Pass `?dry_run=true` untuk preview |
 | POST   | `/import/orderonline`            | Upload data bulanan OrderOnline (Excel)            |
 | POST   | `/import/mengantar`              | Upload data bulanan Mengantar (Excel)              |
 | POST   | `/import/shopee`                 | Upload data Shopee (Excel export Seller Center)    |
@@ -112,7 +114,7 @@ python3 load_data.py # butuh CSV: master_customers_v2.csv, master_orders.csv, dl
 - **customers** — PK `customer_id` berbasis nomor HP ternormalisasi (+62...). Kolom: `name`, `segment` (New/Returning/Loyal/Churn), `total_orders`, `total_revenue`, `avg_order_value`, `last_order_date`, `province`, `city`, `first_platform`, `last_platform`
 - **orders** — `order_id`, `customer_id` (FK), `source_platform` (orderonline|mengantar), `order_date`, `order_status`, `payment_method`, `net_revenue`, `shipping_cost`, `total_qty`, `receipt_number`
 - **order_items** — `order_id`, `source_platform`, `product_id`, `product_name`, `product_category`, `qty_item`, `is_parent_row`
-- **products** — `product_id`, `product_name`
+- **products** — `product_id`, `product_name`, plus kolom rich (auto-added di startup, idempotent): `product_category`, `product_subcategory`, `product_variant`, `product_catalogue`, `product_weight`, `product_price`, `product_cost`, `shopee_link`, `orderonline_link`, `tokopedia_link`, `tiktok_link`. Sync via `/admin/sync-products` upload Excel. `product_catalogue` dipakai untuk fuzzy match Shopee item names.
 - **leads** — `id`, `contact_id` (Cekat), `name`, `phone`, `pipeline_status`, `converted`, `customer_id` (FK), `label_names`, `note`, `kota`, `track` (T1-Akuisisi/T2-Nurturing/T3-Fresh/T3-Lama/T4-Winback/Arsip), plus field domain walet: `rumah_walet`, `usia_rbw`, `ukuran_rbw`, `jumlah_sarang`, `lantai_rbw`, `panen_per_3bulan`
 - **lead_track_history** — `id`, `lead_id`, `from_track`, `to_track`, `source` (sync/import_mengantar/import_leads/manual_sync), `changed_at`. Auto-created di startup app.
 
