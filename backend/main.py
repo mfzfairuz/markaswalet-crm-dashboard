@@ -404,6 +404,19 @@ def analytics_summary(
         ORDER BY month
     """), params)
 
+    # Revenue per bulan per platform (untuk toggle mode "Per Platform")
+    monthly_platform = conn.execute(text(f"""
+        SELECT
+            DATE_FORMAT(o.order_date, '%Y-%m') as month,
+            o.source_platform,
+            SUM(o.net_revenue) as revenue,
+            COUNT(*) as orders
+        FROM orders o
+        WHERE {where_sql}
+        GROUP BY month, o.source_platform
+        ORDER BY month, o.source_platform
+    """), params)
+
 
     # Top products — group by product_id
     top_products = conn.execute(text("""
@@ -450,6 +463,7 @@ def analytics_summary(
             "churn": cust[4],
         },
         "monthly_revenue": rows_to_dict(monthly),
+        "monthly_revenue_by_platform": rows_to_dict(monthly_platform),
         "top_products": rows_to_dict(top_products),
         "top_provinsi": rows_to_dict(top_provinsi),
     }

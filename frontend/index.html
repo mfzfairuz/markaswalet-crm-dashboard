@@ -298,17 +298,23 @@ tr:hover td { background: var(--bg3); color: var(--text); }
                 </div>
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center;width:100%;gap:10px;flex-wrap:wrap">
-                <div style="display:flex;gap:8px;font-size:11px;color:var(--text3)">
+                <div id="revLegend" style="display:flex;gap:8px;font-size:11px;color:var(--text3)">
                   <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;margin-right:4px"></span>Akuisisi</span>
                   <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent2);border-radius:2px;margin-right:4px"></span>Repeat</span>
                 </div>
-                <div style="display:flex;gap:4px;font-size:10px;flex-wrap:wrap">
-                  <button onclick="setRevenuePreset(3)" class="btn-preset">3B</button>
-                  <button onclick="setRevenuePreset(6)" class="btn-preset">6B</button>
-                  <button onclick="setRevenuePreset(12)" class="btn-preset">12B</button>
-                  <button onclick="setRevenuePreset(24)" class="btn-preset">24B</button>
-                  <button onclick="setRevenuePresetYTD()" class="btn-preset">YTD</button>
-                  <button onclick="setRevenuePresetAll()" class="btn-preset">All</button>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <select id="revMode" onchange="renderChart()" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);cursor:pointer;outline:none">
+                    <option value="acq_repeat" selected>Akuisisi vs Repeat</option>
+                    <option value="platform">Per Platform</option>
+                  </select>
+                  <div style="display:flex;gap:4px;font-size:10px;flex-wrap:wrap">
+                    <button onclick="setRevenuePreset(3)" class="btn-preset">3B</button>
+                    <button onclick="setRevenuePreset(6)" class="btn-preset">6B</button>
+                    <button onclick="setRevenuePreset(12)" class="btn-preset">12B</button>
+                    <button onclick="setRevenuePreset(24)" class="btn-preset">24B</button>
+                    <button onclick="setRevenuePresetYTD()" class="btn-preset">YTD</button>
+                    <button onclick="setRevenuePresetAll()" class="btn-preset">All</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1128,7 +1134,9 @@ async function loadDashboard() {
         <div class="stat-change">dari ${fmt(o.total_shipping)} total ongkir</div>
       </div>`;
 
-    window._chartMonths = revenue.data||[]; const months = window._chartMonths, maxRev = Math.max(...months.map(m=>m.revenue||0));
+    window._chartMonths = revenue.data||[];
+    window._chartPlatformRows = summary.monthly_revenue_by_platform || [];
+    const months = window._chartMonths, maxRev = Math.max(...months.map(m=>m.revenue||0));
     document.getElementById('revenueChart').innerHTML = months.slice(-12).map(m=>{
       const pct = maxRev > 0 ? (m.revenue/maxRev)*170 : 4;
       const newH = maxRev > 0 ? ((m.revenue_new||0)/maxRev)*170 : 2;
@@ -1614,16 +1622,77 @@ async function importLeads(input) {
   } catch(e) { toast('Import gagal', 'error'); }
 }
 
-function renderChart() {
-  // Filter berdasarkan input month range
+const PLATFORM_COLORS = {
+  orderonline: { top: '#E8A020', bot: 'rgba(232,160,32,0.5)', label: 'OrderOnline' },
+  mengantar:   { top: '#2D7DD2', bot: 'rgba(45,125,210,0.4)',  label: 'Mengantar' },
+  shopee:      { top: '#EE4D2D', bot: 'rgba(238,77,45,0.4)',   label: 'Shopee' },
+};
+
+function _filterMonthsInRange(arr, key='month') {
   const fromVal = document.getElementById('revFrom')?.value;
   const toVal = document.getElementById('revTo')?.value;
-  let months = (window._chartMonths || []).slice();
-  if (fromVal) months = months.filter(m => (m.month || '') >= fromVal);
-  if (toVal)   months = months.filter(m => (m.month || '') <= toVal);
+  let out = arr.slice();
+  if (fromVal) out = out.filter(m => (m[key] || '') >= fromVal);
+  if (toVal)   out = out.filter(m => (m[key] || '') <= toVal);
+  return out;
+}
 
+function renderChart() {
+  const mode = document.getElementById('revMode')?.value || 'acq_repeat';
+  const legendEl = document.getElementById('revLegend');
+  const target = document.getElementById('revenueChart');
+
+  if (mode === 'platform') {
+    // Build map: month -> {orderonline, mengantar, shopee}
+    const rows = _filterMonthsInRange(window._chartPlatformRows || []);
+    if (rows.length === 0) {
+      target.innerHTML = '<div style="text-align:center;width:100%;color:var(--text3);padding:30px">Tidak ada data di rentang ini</div>';
+      return;
+    }
+    const monthMap = {};
+    rows.forEach(r => {
+      if (!monthMap[r.month]) monthMap[r.month] = {};
+      monthMap[r.month][r.source_platform] = Number(r.revenue || 0);
+    });
+    const months = Object.keys(monthMap).sort();
+    const totals = months.map(m => Object.values(monthMap[m]).reduce((a,b)=>a+b, 0));
+    const maxRev = Math.max(1, ...totals);
+    const order = ['orderonline', 'mengantar', 'shopee'];
+
+    legendEl.innerHTML = order.map(p => {
+      const c = PLATFORM_COLORS[p];
+      return `<span><span style="display:inline-block;width:10px;height:10px;background:${c.top};border-radius:2px;margin-right:4px"></span>${c.label}</span>`;
+    }).join('');
+
+    target.innerHTML = months.map(m => {
+      const data = monthMap[m];
+      const total = order.reduce((s, p) => s + (data[p] || 0), 0);
+      const pct = Math.max(8, (total / maxRev) * 170);
+      const tooltip = `${m}: ${fmt(total)} (` +
+        order.map(p => `${PLATFORM_COLORS[p].label}: ${fmt(data[p] || 0)}`).join(', ') + ')';
+      const segments = order.map(p => {
+        const v = data[p] || 0;
+        if (v === 0) return '';
+        const h = Math.round((v / total) * pct);
+        const c = PLATFORM_COLORS[p];
+        return `<div style="height:${h}px;background:linear-gradient(180deg,${c.top},${c.bot});min-height:1px"></div>`;
+      }).join('');
+      return `<div class="bar-wrap">
+        <div title="${tooltip}" style="display:flex;flex-direction:column-reverse;width:100%;height:${pct}px;border-radius:4px 4px 0 0;overflow:hidden;cursor:pointer">${segments}</div>
+        <div class="bar-label">${(m||'').slice(5)}</div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  // Default mode: Akuisisi vs Repeat
+  legendEl.innerHTML = `
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;margin-right:4px"></span>Akuisisi</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent2);border-radius:2px;margin-right:4px"></span>Repeat</span>
+  `;
+  let months = _filterMonthsInRange(window._chartMonths || []);
   const maxRev = Math.max(1, ...months.map(m => m.revenue || 0));
-  document.getElementById('revenueChart').innerHTML = months.map(m => {
+  target.innerHTML = months.map(m => {
     const pct = Math.max(8, (m.revenue / maxRev) * 170);
     const newH = Math.round(pct * (m.revenue > 0 ? (m.revenue_new || 0) / m.revenue : 0));
     const repH = pct - newH;
