@@ -1046,10 +1046,33 @@ async def _import_shopee_impl(file, conn):
         return None if s in ("", "nan", "NaN", "None") else s
 
     def num(val, default=0):
+        """
+        Parse angka dengan toleransi format Indonesia / English thousand separator.
+        - "450000"        → 450000
+        - "450.000"       → 450000   (Indonesia: dot = thousand sep)
+        - "1.234.567"     → 1234567
+        - "1.234.567,50"  → 1234567.5 (Indonesia: koma = decimal)
+        - "450,000"       → 450000   (English: comma = thousand sep)
+        - "1,234.50"      → 1234.5   (English)
+        - "450.5"         → 450.5    (decimal — pattern thousand sep tidak match)
+        """
+        if val is None or val == "":
+            return default
+        s = str(val).strip().lstrip("'")
+        if not s or s.lower() in ("nan", "none"):
+            return default
+        # Indonesian/European: titik = thousand, koma = desimal (mis. "1.234.567,50")
+        if re.match(r'^-?\d{1,3}(\.\d{3})+(?:,\d+)?$', s):
+            s = s.replace(".", "").replace(",", ".")
+        # English: koma = thousand, titik = desimal (mis. "1,234,567.50")
+        elif re.match(r'^-?\d{1,3}(,\d{3})+(?:\.\d+)?$', s):
+            s = s.replace(",", "")
+        else:
+            # Tidak ada pattern thousand-sep yang jelas — buang koma saja (jaga-jaga)
+            s = s.replace(",", "")
         try:
-            v = pd.to_numeric(str(val).replace(",", "").strip(), errors="coerce")
-            return float(v) if pd.notna(v) else default
-        except:
+            return float(s)
+        except Exception:
             return default
 
     def parse_dt(val):
@@ -1099,6 +1122,7 @@ async def _import_shopee_impl(file, conn):
     inserted = 0
     status_updated = 0
     skipped = 0
+    refreshed = 0
     touched_customers = set()
     status_changes = {}
 
@@ -1152,12 +1176,14 @@ async def _import_shopee_impl(file, conn):
 
         touched_customers.add(customer_id)
 
-        # Order: update kalau sudah ada (status berubah), insert kalau baru
-        if order_id in existing_orders:
+        # Order: existing → UPDATE values + DELETE+INSERT items (refresh)
+        #        baru     → INSERT parent + INSERT items
+        is_existing = order_id in existing_orders
+        if is_existing:
             old_status = existing_orders[order_id]
-            if old_status == new_status:
-                skipped += 1
-                continue
+            # Selalu update — supaya nilai net_revenue/total_qty/courier yang
+            # mungkin pernah salah parse (mis. format Indonesia "450.000")
+            # ter-refresh saat re-upload setelah parser di-fix.
             conn.execute(text("""
                 UPDATE orders SET
                     order_status = :status,
@@ -1171,26 +1197,32 @@ async def _import_shopee_impl(file, conn):
             """), {"oid": order_id, "status": new_status, "payment": payment,
                    "courier": courier, "receipt": receipt,
                    "rev": net_revenue, "ship": shipping_paid, "qty": total_qty})
-            existing_orders[order_id] = new_status
-            status_updated += 1
-            key = (old_status, new_status)
-            status_changes[key] = status_changes.get(key, 0) + 1
-            continue
+            # Hapus item lama supaya item bisa di-rewrite dengan parsed value baru
+            conn.execute(text("""
+                DELETE FROM order_items
+                WHERE order_id = :oid AND source_platform = 'shopee'
+            """), {"oid": order_id})
+            if old_status == new_status:
+                refreshed += 1
+            else:
+                status_updated += 1
+                key = (old_status, new_status)
+                status_changes[key] = status_changes.get(key, 0) + 1
+        else:
+            conn.execute(text("""
+                INSERT INTO orders (order_id, source_platform, customer_id, customer_name,
+                    order_date, order_status, payment_method, shipping_provider,
+                    receipt_number, net_revenue, shipping_cost, seller_shipping_discount, total_qty)
+                VALUES (:oid, 'shopee', :cid, :cname,
+                    :dt, :status, :payment, :courier,
+                    :receipt, :rev, :ship, 0, :qty)
+            """), {"oid": order_id, "cid": customer_id, "cname": receiver_name,
+                   "dt": order_date, "status": new_status, "payment": payment,
+                   "courier": courier, "receipt": receipt,
+                   "rev": net_revenue, "ship": shipping_paid, "qty": total_qty})
+            inserted += 1
 
-        # Insert order baru
-        conn.execute(text("""
-            INSERT INTO orders (order_id, source_platform, customer_id, customer_name,
-                order_date, order_status, payment_method, shipping_provider,
-                receipt_number, net_revenue, shipping_cost, seller_shipping_discount, total_qty)
-            VALUES (:oid, 'shopee', :cid, :cname,
-                :dt, :status, :payment, :courier,
-                :receipt, :rev, :ship, 0, :qty)
-        """), {"oid": order_id, "cid": customer_id, "cname": receiver_name,
-               "dt": order_date, "status": new_status, "payment": payment,
-               "courier": courier, "receipt": receipt,
-               "rev": net_revenue, "ship": shipping_paid, "qty": total_qty})
-
-        # Insert order_items per row dalam group
+        # (Re-)insert order_items per row dalam group
         for idx, row in group.iterrows():
             prod_name = clean(row.get('Nama Produk')) or 'Unknown'
             variant = clean(row.get('Nama Variasi'))
@@ -1206,7 +1238,6 @@ async def _import_shopee_impl(file, conn):
                    "praw": prod_name, "pname": full_name, "qty": line_qty})
 
         existing_orders[order_id] = new_status
-        inserted += 1
 
     # Recalc customer stats untuk Shopee customers yang ter-touch
     if touched_customers:
@@ -1261,6 +1292,7 @@ async def _import_shopee_impl(file, conn):
         "filename": file.filename,
         "inserted": inserted,
         "status_updated": status_updated,
+        "refreshed": refreshed,
         "skipped_duplicate": skipped,
         "customers_touched": len(touched_customers),
         "status_changes": [

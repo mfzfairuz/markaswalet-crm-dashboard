@@ -1417,7 +1417,8 @@ async function uploadFile(file,platform) {
     const parts = [];
     parts.push(`${d.inserted||0} baru`);
     if (d.status_updated) parts.push(`${d.status_updated} status update`);
-    parts.push(`${d.skipped_duplicate||0} skip`);
+    if (d.refreshed) parts.push(`${d.refreshed} refresh`);
+    if (d.skipped_duplicate) parts.push(`${d.skipped_duplicate} skip`);
     if (d.leads_synced) parts.push(`${d.leads_synced} leads converted`);
     if (d.customers_touched) parts.push(`${d.customers_touched} cust update`);
     statusEl.innerHTML = `<span style="color:var(--success)">✅ ${d.filename||'File'} — ${parts.join(', ')}</span>`;
